@@ -1,0 +1,5 @@
+DB_PASSWORD=caner
+DB_USER=caner
+DB_PORT=5432
+DB_HOST=localhost
+DEFAULT_DB=persephone
