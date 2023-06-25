@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/joho/godotenv/autoload"
 	"golang.org/x/crypto/bcrypt"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -36,29 +37,24 @@ const (
 
 // UserDB represents the user in the database.
 type UserDB struct {
-	// ID is an unique UUID5 string.
-	ID       string `json:"id" validate:"uuid5"`
-	Email    string `json:"email"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	// CreatedAt represents the signup  time in unix.
-	CreatedAt int64 `json:"createdAt"`
-	// UpdatedAt represents the last update time in unix.
-	UpdatedAt int64 `json:"updatedAt"`
-	// PhoneNumber Phone numbers must follow +90XXXXXXXXXX format, aka E 164.
-	PhoneNumber  string   `json:"phoneNumber" validate:"e164"`
-	Role         string   `json:"role"`
-	Banned       bool     `json:"banned"`
-	Reputation   int64    `json:"reputation"`
-	ReviewCount  int64    `json:"reviewCount"`
-	ReviewIDs    []string `json:"reviewIDs"`
-	SessionToken string   `json:"sessionToken"`
-	RefreshToken string   `json:"refreshToken"`
-	Location     struct {
-		Country string `json:"country"`
-		City    string `json:"city"`
-	} `json:"location"`
-	Verified bool `json:"verified"`
+	ID              uuid.UUID  `db:"id"`
+	Email           string     `db:"email"`
+	Username        string     `db:"username"`
+	Password        string     `db:"password"`
+	CreatedAt       time.Time  `db:"created_at"`
+	UpdatedAt       time.Time  `db:"updated_at"`
+	PhoneNumber     string     `db:"phone_number"`
+	Role            string     `db:"role"`
+	PlaceID         *uuid.UUID `db:"place_id"`
+	Banned          bool       `db:"banned"`
+	Reputation      int16      `db:"reputation"`
+	ReviewCount     int16      `db:"review_count"`
+	SessionToken    string     `db:"session_token"`
+	RefreshToken    string     `db:"refresh_token"`
+	Location        *uuid.UUID `db:"location"`
+	Verified        bool       `db:"verified"`
+	LastLoginIP     net.IP     `db:"last_login_ip"`
+	PossibleSpammer bool       `db:"possible_spammer"`
 }
 
 const (
@@ -71,14 +67,15 @@ const (
 	UpdatedAtDBField       = "updated_at"
 	PhoneNumberDBField     = "phone_number"
 	RoleDBField            = "role"
+	PlaceIDDBField         = "place_id"
 	BannedDBField          = "banned"
 	ReputationDBField      = "reputation"
 	ReviewCountDBField     = "review_count"
-	ReviewIDsDBField       = "review_ids"
 	SessionTokenDBField    = "session_token"
 	RefreshTokenDBField    = "refresh_token"
-	LocationCountryDBField = "location_country"
-	LocationCityDBField    = "location_city"
+	LocationDBField        = "location"
+	LastLoginIPDBField     = "last_login_ip"
+	PossibleSpammerDBField = "possible_spammer"
 	VerifiedDBField        = "verified"
 )
 
@@ -202,7 +199,7 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 			// try again
 			cancel()
 		} else {
-			userData.ID = userID.String()
+			userData.ID = userID
 			cancel()
 			break
 		}
@@ -211,16 +208,14 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 	userData.Email = signUpForm.Email
 	userData.Username = signUpForm.Username
 	userData.PhoneNumber = signUpForm.PhoneNum
-	userData.Location.City = signUpForm.City
-	userData.Location.Country = signUpForm.Country
 	userData.Banned = false
 	userData.Reputation = 0
-	userData.CreatedAt = time.Now().Unix()
-	userData.UpdatedAt = time.Now().Unix()
+	userData.CreatedAt = time.Now()
+	userData.UpdatedAt = time.Now()
 	userData.Role = "user"
 	userData.ReviewCount = 0
-	userData.ReviewIDs = []string{}
 	userData.Verified = false
+	userData.ReviewCount = 0
 	tokenLoginInterface := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"uuid":   userData.ID,
 		"exp":    time.Now().Add(tokenDurationLogin).Unix(),
@@ -241,6 +236,24 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 	refreshToken, err := refreshTokenInterface.SignedString([]byte(os.Getenv("JWT_ENCRYPT_KEY")))
 	userData.SessionToken = loginToken
 	userData.RefreshToken = refreshToken
+	userData.Verified = false
+	userData.PossibleSpammer = false
+	// no place id at register
+	userData.PlaceID = nil
+	loggedInIP := r.Header.Get("X-Forwarded-For")
+	if loggedInIP == "" {
+		loggedInIP = r.RemoteAddr
+		if loggedInIP == "" {
+			loggedInIP = "unknown"
+		}
+	}
+	if loggedInIP != "unknown" {
+		userData.LastLoginIP = net.ParseIP(loggedInIP)
+	} else {
+		userData.LastLoginIP = nil
+	}
+	userData.Location = nil
+
 	// insert the user
 	user := s.StmtBuilder.Insert("users").
 		Columns(
@@ -255,12 +268,13 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 			BannedDBField,
 			ReputationDBField,
 			ReviewCountDBField,
-			ReviewIDsDBField,
 			SessionTokenDBField,
 			RefreshTokenDBField,
-			LocationCityDBField,
-			LocationCountryDBField,
-			VerifiedDBField).
+			LocationDBField,
+			VerifiedDBField,
+			PossibleSpammerDBField,
+			PlaceIDDBField,
+			LastLoginIPDBField).
 		Values(
 			userData.ID,
 			userData.Email,
@@ -273,12 +287,13 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 			userData.Banned,
 			userData.Reputation,
 			userData.ReviewCount,
-			userData.ReviewIDs,
 			userData.SessionToken,
 			userData.RefreshToken,
-			userData.Location.Country,
-			userData.Location.City,
+			userData.Location,
 			userData.Verified,
+			userData.PossibleSpammer,
+			userData.PlaceID,
+			userData.LastLoginIP,
 		)
 	sql, args, err := user.ToSql()
 	if err != nil {
@@ -424,7 +439,7 @@ func GetUser(r *http.Request) {
 	}
 	userFindQuery := s.StmtBuilder.
 		Select(
-			fmt.Sprintf("%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s",
+			fmt.Sprintf("%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s",
 				IDDBField,
 				EmailDBField,
 				UsernameDBField,
@@ -434,10 +449,7 @@ func GetUser(r *http.Request) {
 				RoleDBField,
 				BannedDBField,
 				ReputationDBField,
-				ReviewIDsDBField,
 				ReviewCountDBField,
-				LocationCountryDBField,
-				LocationCityDBField,
 				RefreshTokenDBField,
 				VerifiedDBField)).
 		From(UserTableName).
@@ -455,23 +467,18 @@ func GetUser(r *http.Request) {
 		return
 	}
 	var response GetUserDataResponse
-	var createdAt int64
-	var updatedAt int64
 	if user.Next() {
 		err = user.Scan(
 			&response.User.ID,
 			&response.User.Email,
 			&response.User.Username,
-			&createdAt,
-			&updatedAt,
+			&response.User.CreatedAt,
+			&response.User.UpdatedAt,
 			&response.User.PhoneNumber,
 			&response.User.Role,
 			&response.User.Banned,
 			&response.User.Reputation,
-			&response.User.ReviewIDs,
 			&response.User.ReviewCount,
-			&response.User.Location.Country,
-			&response.User.Location.City,
 			&response.RefreshToken,
 			&response.User.Verified)
 		if err != nil {
@@ -484,8 +491,6 @@ func GetUser(r *http.Request) {
 		return
 	}
 	response.SessionToken = strings.Replace(r.Header.Get("Authorization"), "Bearer ", "", -1)
-	response.User.CreatedAt = time.Unix(createdAt, 0)
-	response.User.UpdatedAt = time.Unix(updatedAt, 0)
 	if s.WriteResponse(response, http.StatusOK) != nil {
 		s.LogError(err, http.StatusInternalServerError)
 		return

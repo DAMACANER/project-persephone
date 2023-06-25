@@ -4,8 +4,8 @@ package backend
 import (
 	"context"
 	"fmt"
-	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
@@ -34,7 +34,7 @@ func LaunchBackend() {
 	// please do not fiddle with middleware order.
 	router.Use(core.AssignServer)
 	router.Use(core.AssignWriter)
-	router.Use(core.AssignLogger("persephone-backend"))
+	router.Use(core.AssignLogger())
 	router.Use(core.AssignValidator)
 	router.Use(core.AssignQueryBuilder)
 

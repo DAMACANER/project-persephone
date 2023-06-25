@@ -26,7 +26,7 @@ func AssignServer(next http.Handler) http.Handler {
 	})
 }
 
-func AssignLogger(loggerName string) func(next http.Handler) http.Handler {
+func AssignLogger() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			server := r.Context().Value(ServerKeyString).(*Server)
@@ -39,12 +39,6 @@ func AssignLogger(loggerName string) func(next http.Handler) http.Handler {
 			server.Logger = sugar
 			ctx := context.WithValue(r.Context(), ServerKeyString, server)
 			r = r.WithContext(ctx)
-			defer func(Logger *zap.SugaredLogger) {
-				err := Logger.Sync()
-				if err != nil {
-					panic(err)
-				}
-			}(server.Logger)
 			next.ServeHTTP(w, r)
 		})
 	}

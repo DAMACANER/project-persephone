@@ -227,6 +227,8 @@ func CreateWorldTables() {
 	if err != nil {
 		panic(err)
 	}
+	db.Exec(context.Background(), "CREATE DATABASE IF NOT EXISTS persephone")
+	db.Exec(context.Background(), "CREATE SCHEMA IF NOT EXISTS public")
 	var cityDataFixed Cities
 	for _, city := range cityData {
 		var dumpCity City
