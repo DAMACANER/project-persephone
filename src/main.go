@@ -38,6 +38,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	CreateWorldTables()
 	// schedule any kind of crons you have below
 	s := gocron.NewScheduler(time.UTC)
 	_, err = s.Every(3).Days().SingletonMode().Do(func() {
