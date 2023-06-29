@@ -6,17 +6,21 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/Masterminds/squirrel"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 	"github.com/qedus/osmpbf"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/crypto/bcrypt"
 	"io"
+	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"runtime"
 	"time"
 )
@@ -81,11 +85,8 @@ func DecodeJSONBody(r *http.Request, desiredStruct interface{}) error {
 	if err != nil {
 		return err
 	}
-	defer r.Body.Close()
-
 	// Remove invalid characters from the JSON body
 	cleanBody := removeInvalidCharacters(body)
-
 	err = json.Unmarshal(cleanBody, desiredStruct)
 	if err != nil {
 		return errors.New("failed to parse JSON body")
@@ -94,12 +95,45 @@ func DecodeJSONBody(r *http.Request, desiredStruct interface{}) error {
 	return nil
 }
 
+// GetUniqueUUID returns an unique UUID for a given table and field.
+//
+// Example:
+//
+//	userData.ID, err = s.GetUniqueUUID(UserTableName, IDDBField)
+//
+// Returns a new UUID that is unique in the table "users" table for the field "id".
+func (s Server) GetUniqueUUID(tableName string, dbIDField string) (uuid.UUID, error) {
+	for {
+		var userID, err = uuid.NewUUID()
+		if err != nil {
+			return userID, err
+		}
+		// check if user exists with this id
+		user := s.StmtBuilder.Select("*").From(tableName).Where(squirrel.Eq{dbIDField: userID.String()})
+		sql, args, err := user.ToSql()
+		if err != nil {
+			return userID, err
+		}
+		to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		rows, err := s.DB.Query(to, sql, args...)
+		cancel()
+		if err != nil {
+			return userID, err
+		}
+		if rows.Next() {
+			// try again
+		} else {
+			return userID, err
+		}
+	}
+}
+
 // removeInvalidCharacters removes invalid characters from the JSON body.
 func removeInvalidCharacters(body []byte) []byte {
 	// Define invalid characters you want to remove from the JSON body
 	invalidChars := []byte{'\n', '\r'}
 
-	// Remove invalid characters
+	// Remove invalid characterst
 	cleanedBody := make([]byte, 0, len(body))
 	for _, b := range body {
 		if !contains(invalidChars, b) {
@@ -135,14 +169,13 @@ func (s Server) GetJWTData(r *http.Request) (JWTFields, error) {
 		return JWTFields{}, errors.New("no Authorization header")
 	}
 	jwtTok := header[len("Bearer "):]
-	godotenv.Load(FindEnv())
 	token, err := jwt.Parse(jwtTok, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			err := errors.New("unexpected signing method")
 			s.LogError(err, http.StatusInternalServerError)
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(os.Getenv("JWT_ENCRYPT_KEY")), nil
+		return []byte(JWT_ENCRYPT_KEY), nil
 	})
 	if err != nil {
 		return JWTFields{}, err
@@ -174,42 +207,71 @@ func (s Server) GetJWTData(r *http.Request) (JWTFields, error) {
 	return fields, nil
 }
 
-func FindEnv() string {
-	exePath, err := os.Executable()
-	if err != nil {
-		panic(err)
-		return ""
-	}
-	return filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(exePath))), ".env")
-}
-
-func FindLatestOSMData() string {
-	exePath, err := os.Executable()
-	if err != nil {
-		panic(err)
-		return ""
-	}
-	return filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(exePath))), "turkey-latest.osm.pbf")
-}
-
-const (
-	SSLDisabled = "disable"
-	SSLRequired = "require"
-)
-
 func GetPSQLConnString(isSSLDisabled string) string {
-	exePath, err := os.Executable()
+	dbPort := DBPort
+	dbHost := DBHost
+	dbUser := DBUser
+	dbPassword := DBPassword
+	defaultDb := DefaultDB
+	return fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s", dbUser, dbPassword, dbHost, dbPort, defaultDb, isSSLDisabled)
+}
+
+func GetPgPool() (*pgxpool.Pool, error) {
+	db, err := pgxpool.New(context.Background(), GetPSQLConnString(DBConnSSLDisabled))
+	if err != nil {
+		return nil, err
+	}
+	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	// acquire a connection from the pool, just to test if it works
+	conn, err := db.Acquire(to)
+	if err != nil {
+		return nil, err
+	}
+	if conn.Ping(to) != nil {
+		return nil, err
+	}
+	conn.Release()
+	return db, nil
+}
+func ReturnRouter() *chi.Mux {
+	router := chi.NewRouter()
+
+	//
+	// PRE-SET MIDDLEWARES
+	//
+	router.Use(middleware.RequestID)
+	router.Use(middleware.RealIP)
+	router.Use(middleware.Logger)
+	router.Use(middleware.Recoverer)
+	router.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"https://*", "http://*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: false,
+		MaxAge:           300, // Maximum value not ignored by any of major browsers
+	}))
+	// please do not fiddle with middleware order.
+	router.Use(AssignServer)
+	router.Use(AssignWriter)
+	router.Use(AssignLogger())
+	router.Use(AssignValidator)
+	router.Use(AssignQueryBuilder)
+
+	//
+	// POSTGRES CONNECTION POOL INITIALIZATION
+	//
+	db, err := GetPgPool()
 	if err != nil {
 		panic(err)
-		return ""
 	}
-	godotenv.Load(filepath.Join(filepath.Dir(filepath.Dir(filepath.Dir(exePath))), ".psqlenv"))
-	dbPort := os.Getenv("DB_PORT")
-	dbHost := os.Getenv("DB_HOST")
-	dbUser := os.Getenv("DB_USER")
-	dbPassword := os.Getenv("DB_PASSWORD")
-	defaultDb := os.Getenv("DEFAULT_DB")
-	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", dbUser, dbPassword, dbHost, dbPort, defaultDb, isSSLDisabled)
+	router.Use(AssignDB(db))
+	// MOUNT YOUR ROUTERS HERE.
+	router.Route("/api", func(r chi.Router) {
+		r.Mount("/user", NewUserHandler())
+	})
+	return router
 }
 
 type Restaurant struct {
@@ -241,7 +303,12 @@ func fetchRestaurantsInArea(filename string, minLon, minLat, maxLon, maxLat floa
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			log.Println(err)
+		}
+	}(file)
 
 	decoder := osmpbf.NewDecoder(file)
 	err = decoder.Start(runtime.GOMAXPROCS(-1))
@@ -285,7 +352,7 @@ func fetchRestaurantsInArea(filename string, minLon, minLat, maxLon, maxLat floa
 
 	return nodes, nil
 }
-func FetchPlaces(db *pgxpool.Pool) {
+func FetchPlaces() {
 	// Define bounding box coordinates for Istanbul
 	fmt.Println("Fetching restaurant data...")
 	var restaurants []Restaurant

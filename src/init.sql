@@ -46,7 +46,7 @@ ALTER TABLE places_reports ADD FOREIGN KEY (report_id) REFERENCES reports(id);
 
 
 CREATE TABLE IF NOT EXISTS "users" (
-                                       "id" UUID PRIMARY KEY DEFAULT (uuid_generate_v5(uuid_ns_dns(), 'users')) ,
+                                       "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                                        "email" VARCHAR(255) UNIQUE NOT NULL,
                                        "username" VARCHAR(24) UNIQUE NOT NULL,
                                        "password" VARCHAR(64) NOT NULL,

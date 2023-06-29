@@ -1,5 +1,7 @@
 github.com/AfterShip/email-verifier v1.3.3 h1:1IQ9ye+veU7+QmDLISbZQ0wf1BiiS873YGVYC/WCkIg=
 github.com/AfterShip/email-verifier v1.3.3/go.mod h1:duPLT6e3xTLLEKYuQOXMAQPLdDsaEuUp5x5H/mb+aHc=
+github.com/DATA-DOG/go-sqlmock v1.5.0 h1:Shsta01QNfFxHCfpW6YH2STWB0MudeXXEWMr20OEh60=
+github.com/DATA-DOG/go-sqlmock v1.5.0/go.mod h1:f/Ixk793poVmq4qj/V1dPUg2JEAKC73Q5eFN3EC/SaM=
 github.com/Masterminds/squirrel v1.5.4 h1:uUcX/aBc8O7Fg9kaISIUsHXdKuqehiXAMQTYX8afzqM=
 github.com/Masterminds/squirrel v1.5.4/go.mod h1:NNaOrjSoIDfDA40n7sr2tPNZRfjzjA400rg+riTZj10=
 github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLju8=
