@@ -8,19 +8,16 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/joho/godotenv/autoload"
 	"golang.org/x/crypto/bcrypt"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 )
 
-func NewUserHandler(db *pgxpool.Pool) http.Handler {
+func NewUserHandler() http.Handler {
 	r := chi.NewRouter()
-	r.Use(AssignDB(db))
 	r.Use(AssignTracer("user", "USER_CRUD", "persephone-user-crud"))
 	r.Post("/signup", UserSignupHandler)
 	r.Post("/login", UserLoginHandler)
@@ -175,35 +172,6 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 		s.LogError(err, http.StatusInternalServerError)
 		return
 	}
-	for {
-		userID, err := uuid.NewUUID()
-		if err != nil {
-			s.LogError(err, http.StatusInternalServerError)
-			return
-		}
-		// check if user exists with this id
-		user := s.StmtBuilder.Select("*").From("users").Where(squirrel.Eq{"id": userID.String()})
-		sql, args, err := user.ToSql()
-		if err != nil {
-			s.LogError(err, http.StatusInternalServerError)
-			return
-		}
-		to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		rows, err := s.DB.Query(to, sql, args...)
-		if err != nil {
-			s.LogError(err, http.StatusInternalServerError)
-			cancel()
-			return
-		}
-		if rows.Next() {
-			// try again
-			cancel()
-		} else {
-			userData.ID = userID
-			cancel()
-			break
-		}
-	}
 	userData.Password = passwordHashed
 	userData.Email = signUpForm.Email
 	userData.Username = signUpForm.Username
@@ -214,6 +182,11 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 	userData.UpdatedAt = time.Now()
 	userData.Role = "user"
 	userData.ReviewCount = 0
+	userData.ID, err = s.GetUniqueUUID(UserTableName, IDDBField)
+	if err != nil {
+		s.LogError(err, http.StatusInternalServerError)
+		return
+	}
 	userData.Verified = false
 	userData.ReviewCount = 0
 	tokenLoginInterface := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -222,7 +195,7 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 		"role":   roleUser,
 		"status": tokenStatusWaitingLogin,
 	})
-	loginToken, err := tokenLoginInterface.SignedString([]byte(os.Getenv("JWT_ENCRYPT_KEY")))
+	loginToken, err := tokenLoginInterface.SignedString([]byte(JWT_ENCRYPT_KEY))
 	if err != nil {
 		s.LogError(err, http.StatusInternalServerError)
 		return
@@ -233,7 +206,7 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 		"role":   roleUser,
 		"status": tokenStatusRefresh,
 	})
-	refreshToken, err := refreshTokenInterface.SignedString([]byte(os.Getenv("JWT_ENCRYPT_KEY")))
+	refreshToken, err := refreshTokenInterface.SignedString([]byte(JWT_ENCRYPT_KEY))
 	userData.SessionToken = loginToken
 	userData.RefreshToken = refreshToken
 	userData.Verified = false
@@ -398,7 +371,7 @@ func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 		"role":   roleUser,
 		"status": tokenStatusActive,
 	})
-	tokenToSend, err := tokenAuth.SignedString([]byte(os.Getenv("JWT_ENCRYPT_KEY")))
+	tokenToSend, err := tokenAuth.SignedString([]byte(JWT_ENCRYPT_KEY))
 	if err != nil {
 		s.LogError(err, http.StatusInternalServerError)
 		return

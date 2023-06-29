@@ -69,9 +69,10 @@ func ValidateEmail(fl validator.FieldLevel) bool {
 	if ret.Disposable {
 		return false
 	}
-	if ret.Reachable != "unknown" || ret.Reachable != "yes" {
+	if ret.Reachable != "unknown" && ret.Reachable != "yes" {
 		return false
 	}
+
 	// TODO: smtp server for pinging the email to see if it exists, or it is alive.
 	return true
 }

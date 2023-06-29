@@ -14,7 +14,7 @@ import (
 )
 
 func init() {
-	db, err := pgxpool.New(context.Background(), core.GetPSQLConnString(core.SSLDisabled))
+	db, err := pgxpool.New(context.Background(), core.GetPSQLConnString(core.DBConnSSLDisabled))
 	if err != nil {
 		panic(err)
 	}
@@ -45,7 +45,7 @@ func init() {
 	// schedule any kind of crons you have below
 	s := gocron.NewScheduler(time.UTC)
 	_, err = s.Every(3).Days().SingletonMode().Do(func() {
-		core.FetchPlaces(db)
+		core.FetchPlaces()
 	})
 	if err != nil {
 		log.Printf("error scheduling cron: %v", err)

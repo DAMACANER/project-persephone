@@ -11,6 +11,8 @@ import (
 	"time"
 )
 
+var RouterFunc = ReturnRouter
+
 // types.go contains the most common types used in the routers. if a struct is used only in one handler, or
 // strictly related to the handler, it will be defined in the handler file, usually at the top of the handler.
 //
@@ -109,4 +111,22 @@ const (
 	tokenStatusActive       = "ACTIVE"
 	tokenStatusWaitingLogin = "WAITING_LOGIN"
 	tokenStatusRefresh      = "REFRESH"
+)
+
+const (
+	JWT_ENCRYPT_ALGORITHM = "HS256"
+	JWT_ENCRYPT_KEY       = "f18e90e9b71cf9af78022ef12350602d"
+)
+
+// for db
+const (
+	DBConnSSLDisabled = "disable"
+	DBConnSSLEnabled  = "require"
+)
+const (
+	DBPassword = "caner"
+	DBUser     = "caner"
+	DBPort     = 5432
+	DBHost     = "localhost"
+	DefaultDB  = "persephone"
 )
