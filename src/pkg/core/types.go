@@ -130,3 +130,8 @@ const (
 	DBHost     = "localhost"
 	DefaultDB  = "persephone"
 )
+
+const (
+	AllowedUserEmailUpdateInterval = time.Hour * 24 * 7
+	AllowedUsernameUpdateInterval  = time.Hour * 24 * 90
+)
