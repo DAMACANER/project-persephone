@@ -48,22 +48,24 @@ ALTER TABLE places_reports ADD FOREIGN KEY (report_id) REFERENCES reports(id);
 CREATE TABLE IF NOT EXISTS "users" (
                                        "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
                                        "email" VARCHAR(255) UNIQUE NOT NULL,
+                                       "email_last_updated_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                                        "username" VARCHAR(24) UNIQUE NOT NULL,
+                                       "username_last_updated_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                                        "password" VARCHAR(64) NOT NULL,
-                                       "created_at" TIMESTAMP WITH TIME ZONE NOT NULL,
-                                       "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL,
+                                       "created_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+                                       "updated_at" TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
                                        "phone_number" VARCHAR(20) UNIQUE NOT NULL,
                                        "role" VARCHAR(25) NOT NULL,
-                                       "place_id" UUID,
-                                       "banned" BOOLEAN NOT NULL,
-                                       "reputation" SMALLINT NOT NULL,
-                                       "review_count" SMALLINT NOT NULL,
+                                       "place_id" UUID DEFAULT NULL,
+                                       "banned" BOOLEAN NOT NULL DEFAULT false,
+                                       "reputation" SMALLINT NOT NULL DEFAULT 0,
                                        "session_token" VARCHAR(255) NOT NULL,
                                        "refresh_token" VARCHAR(255) NOT NULL,
-                                       "verified" BOOLEAN NOT NULL,
-                                       "location" UUID,
+                                       "verified" BOOLEAN NOT NULL DEFAULT false,
+                                       "location" UUID DEFAULT NULL,
                                        "last_login_ip" inet,
-                                       "possible_spammer" BOOLEAN NOT NULL
+                                       "last_login_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+                                       "possible_spammer" BOOLEAN NOT NULL DEFAULT false
 );
 ALTER TABLE "users" ADD FOREIGN KEY (location) REFERENCES "country_city_state_map" ("id");
 ALTER TABLE "users" ADD FOREIGN KEY ("place_id") REFERENCES "places" ("id");
