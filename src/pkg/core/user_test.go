@@ -31,6 +31,17 @@ func (suite *UserTestSuite) SetupSuite() {
 	suite.StmtBuilder = stmt
 }
 
+// TestUserSignupHandler replicates where:
+//
+// -> User signs up with a valid payload.
+//
+// -> User signs up with an invalid payload.
+//
+// -> User tries to signs up with an existing email/phone.
+//
+// -> Validators are working, and invalid payloads are rejected.
+//
+// -> We can override the existing user if frontend sets the test flag to true.
 func (suite *UserTestSuite) TestUserSignupHandler() {
 	// before hand, delete our test user.
 	sql, args, err := suite.StmtBuilder.Delete("users").Where(squirrel.Eq{"email": "crazyboycaner_featceza@hotmail.com"}).ToSql()
@@ -53,12 +64,9 @@ func (suite *UserTestSuite) TestUserSignupHandler() {
 	req, err := suite.Server.Client().Post(suite.Server.URL+"/api/user/signup", "application/json", strings.NewReader(string(jsonPayload)))
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 200, req.StatusCode)
-	// delete the user again
-	sql, args, err = suite.StmtBuilder.Delete("users").Where(squirrel.Eq{"email": "crazyboycaner_featceza@hotmail.com"}).ToSql()
-	assert.Nil(suite.T(), err)
-	_, err = suite.DB.Exec(to, sql, args...)
-	assert.Nil(suite.T(), err)
-	// now try register without deleting user, with same payload, should return 400
+	// now try register without deleting user, with same payload only setting test to false, should return 400
+	payload.Test = false
+	jsonPayload, err = json.Marshal(payload)
 	req, err = suite.Server.Client().Post(suite.Server.URL+"/api/user/signup", "application/json", strings.NewReader(string(jsonPayload)))
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 400, req.StatusCode)
