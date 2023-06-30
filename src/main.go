@@ -31,11 +31,13 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	if conn.Ping(to) != nil {
+	if err = conn.Ping(to); err != nil {
 		panic(err)
 	}
 	CreateWorldTables()
 	// after being done, execute the init.sql for table/schema creation if not exists already.
+	//
+	// init.sql always lies in the src folder, so we can just read it from there.
 	sqlData, err := os.ReadFile("./init.sql")
 	if err != nil {
 		panic(err)

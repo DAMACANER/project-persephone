@@ -237,8 +237,6 @@ func GetPgPool() (*pgxpool.Pool, error) {
 }
 func ReturnHandler() http.Handler {
 	router := chi.NewRouter()
-	// modify the transport of router
-
 	//
 	// PRE-SET MIDDLEWARES
 	//
