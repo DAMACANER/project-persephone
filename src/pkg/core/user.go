@@ -107,11 +107,7 @@ type UserSignupRequest struct {
 	Country  string `json:"country"`
 }
 
-type UserSignupResponse struct {
-	User         UserDB `json:"user"`
-	LoginToken   string `json:"loginToken"`
-	RefreshToken string `json:"refreshToken"`
-}
+type UserSignupResponse GetUserDataResponse
 
 func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
@@ -311,12 +307,14 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 	GetUser(r)
 }
 
-type UserSignInRequest struct {
+type UserLoginRequest struct {
 	Email    string `json:"email" validate:"usernameOrEmailExists"`
 	Username string `json:"username" validate:"usernameOrEmailExists"`
 	Password string `json:"password" binding:"required"`
 	Test     bool   `json:"test"`
 }
+
+type UserLoginResponse GetUserDataResponse
 
 func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
@@ -330,7 +328,7 @@ func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 		TokenStatusWhitelist(jwtContents, []string{tokenStatusWaitingLogin})
 		uid = jwtContents.UUID
 	} else {
-		var signInForm UserSignInRequest
+		var signInForm UserLoginRequest
 		err := json.NewDecoder(r.Body).Decode(&signInForm)
 		if err != nil {
 			s.LogError(err, http.StatusBadRequest)
@@ -401,7 +399,7 @@ type GetUserDataResponse struct {
 			Country string `json:"country"`
 		}
 		Verified bool `json:"verified"`
-	}
+	} `json:"user"`
 	SessionToken string `json:"sessionToken"`
 	RefreshToken string `json:"refreshToken"`
 }

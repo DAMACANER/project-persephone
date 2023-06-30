@@ -114,12 +114,18 @@ func ValidatePassword(fl validator.FieldLevel) bool {
 }
 
 func ValidateUsernameOrEmailExists(fl validator.FieldLevel) bool {
-	currentField := fl.Field().String()
-	if currentField == "username" {
+	currentField := fl.FieldName()
+	var fieldNotEmpty = fl.Field().String() != ""
+	if currentField == "Username" && fieldNotEmpty {
 		return ValidateUsername(fl)
-	} else if currentField == "email" {
+	} else if currentField == "Email" && fieldNotEmpty {
 		return ValidateEmail(fl)
-	} else {
-		return false
+	} else if !fieldNotEmpty && fl.Parent().FieldByName("Email").String() != "" && currentField == "Username" {
+		// we will validate the email field, if it is not empty.
+		return true
+	} else if !fieldNotEmpty && fl.Parent().FieldByName("Username").String() != "" && currentField == "Email" {
+		// we will validate the username field, if it is not empty.
+		return true
 	}
+	return false
 }

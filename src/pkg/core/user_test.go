@@ -3,10 +3,12 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/Masterminds/squirrel"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -110,6 +112,73 @@ func (suite *UserTestSuite) TestUserSignupHandler() {
 	assert.Nil(suite.T(), err)
 }
 
+func (suite *UserTestSuite) TestUserLogin() {
+	var payloadSignup UserSignupRequest
+	payloadSignup.Email = "crazyboycaner_featceza@hotmail.com"
+	payloadSignup.Username = "canercezarapyapardostlar"
+	payloadSignup.Password = "123$sagopaHaksizdi"
+	payloadSignup.Test = true
+	payloadSignup.PhoneNum = "+905555555555"
+	payloadSignup.City = "BURSA"
+	payloadSignup.Country = "TURKEY"
+	jsonPayload, err := json.Marshal(payloadSignup)
+	assert.Nil(suite.T(), err)
+	req, err := suite.Server.Client().Post(suite.Server.URL+"/api/user/signup", "application/json", strings.NewReader(string(jsonPayload)))
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 200, req.StatusCode)
+	var resp UserSignupResponse
+	err = json.NewDecoder(req.Body).Decode(&resp)
+	assert.Nil(suite.T(), err)
+	// first of all, check if session token login is working.
+	//
+	// warning that httptest is for incoming requests, not outgoing requests.
+	draftReq, err := http.NewRequest("POST", suite.Server.URL+"/api/user/login", nil)
+	assert.Nil(suite.T(), err)
+	draftReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", resp.SessionToken))
+	loginReq, err := suite.Server.Client().Do(draftReq)
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 200, loginReq.StatusCode)
+	// now lets try to login without bearer token and only body variables.
+	var payloadLogin UserLoginRequest
+	payloadLogin.Email = "crazyboycaner_featceza@hotmail.com"
+	payloadLogin.Password = "123$sagopaHaksizdi"
+	payloadLogin.Test = true
+	jsonPayload, err = json.Marshal(payloadLogin)
+	assert.Nil(suite.T(), err)
+	req, err = suite.Server.Client().Post(suite.Server.URL+"/api/user/login", "application/json", strings.NewReader(string(jsonPayload)))
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 200, req.StatusCode)
+	// if all is good, all is well, lets try with test parameter set to false.
+	//
+	// first of all delete the test user.
+	sql, args, err := suite.StmtBuilder.Delete("users").Where(squirrel.Eq{"email": "crazyboycaner_featceza@hotmail.com"}).ToSql()
+	assert.Nil(suite.T(), err)
+	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err = suite.DB.Exec(to, sql, args...)
+	assert.Nil(suite.T(), err)
+	// now signup again with test parameter set to false.
+	payloadSignup.Test = false
+	jsonPayload, err = json.Marshal(payloadSignup)
+	assert.Nil(suite.T(), err)
+	req, err = suite.Server.Client().Post(suite.Server.URL+"/api/user/signup", "application/json", strings.NewReader(string(jsonPayload)))
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 200, req.StatusCode)
+	err = json.NewDecoder(req.Body).Decode(&resp)
+	assert.Nil(suite.T(), err)
+	// now try to login with test parameter set to false.
+	payloadLogin.Test = false
+	jsonPayload, err = json.Marshal(payloadLogin)
+	assert.Nil(suite.T(), err)
+	req, err = suite.Server.Client().Post(suite.Server.URL+"/api/user/login", "application/json", strings.NewReader(string(jsonPayload)))
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 200, req.StatusCode)
+	// now delete the user.
+	sql, args, err = suite.StmtBuilder.Delete("users").Where(squirrel.Eq{"email": "crazyboycaner_featceza@hotmail.com"}).ToSql()
+	assert.Nil(suite.T(), err)
+	_, err = suite.DB.Exec(to, sql, args...)
+	assert.Nil(suite.T(), err)
+}
 func TestUserCRUD(t *testing.T) {
 	var testSuite = new(UserTestSuite)
 	suite.Run(t, testSuite)
