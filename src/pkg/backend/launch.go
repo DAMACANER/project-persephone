@@ -15,7 +15,10 @@ func LaunchBackend() {
 		fmt.Printf("%s %s\n", method, route)
 		return nil
 	}
-	router := core.RouterFunc()
+	handler := core.HandlerFunc()
+	// handler is a chi.mux wraped inside an otelhttp handler, mount it to the root router.
+	router := chi.NewRouter()
+	router.Mount("/", handler)
 	if err := chi.Walk(router, walkFunc); err != nil {
 		fmt.Printf("Logging err: %s\n", err.Error())
 	}

@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"github.com/go-co-op/gocron"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"log"
 	"os"
 	"persephone/pkg/backend"
@@ -14,6 +17,9 @@ import (
 )
 
 func init() {
+	// setup OTEL exporter, to be used in the tracer
+	setupExporter()
+	// get a new db connection and create city, state, and country tables
 	db, err := pgxpool.New(context.Background(), core.GetPSQLConnString(core.DBConnSSLDisabled))
 	if err != nil {
 		panic(err)
@@ -28,11 +34,8 @@ func init() {
 	if conn.Ping(to) != nil {
 		panic(err)
 	}
-	// open init.sql and execute it
-	//
-	// but first, create city states and country tables
 	CreateWorldTables()
-
+	// after being done, execute the init.sql for table/schema creation if not exists already.
 	sqlData, err := os.ReadFile("./init.sql")
 	if err != nil {
 		panic(err)
@@ -55,7 +58,26 @@ func init() {
 	go func() {
 		backend.LaunchBackend()
 	}()
+	// start executing cron jobs asynchronously and block the main thread while backend is running.
 	s.StartAsync()
 	s.StartBlocking()
 }
+
+func setupExporter() {
+	endpoint := "http://localhost:14268/api/traces" // Jaeger endpoint
+
+	exporter, err := jaeger.New(
+		jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+	)
+
+	otel.SetTracerProvider(tp)
+}
+
 func main() {}
