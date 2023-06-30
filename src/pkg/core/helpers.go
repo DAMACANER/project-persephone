@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/qedus/osmpbf"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/crypto/bcrypt"
@@ -234,9 +235,8 @@ func GetPgPool() (*pgxpool.Pool, error) {
 	conn.Release()
 	return db, nil
 }
-func ReturnRouter() *chi.Mux {
+func ReturnHandler() http.Handler {
 	router := chi.NewRouter()
-
 	//
 	// PRE-SET MIDDLEWARES
 	//
@@ -271,7 +271,9 @@ func ReturnRouter() *chi.Mux {
 	router.Route("/api", func(r chi.Router) {
 		r.Mount("/user", NewUserHandler())
 	})
-	return router
+	return otelhttp.NewHandler(router, "server", otelhttp.WithSpanNameFormatter(func(operation string, r *http.Request) string {
+		return operation + " " + r.URL.Path
+	}))
 }
 
 type Restaurant struct {
@@ -363,7 +365,7 @@ func FetchPlaces() {
 	// Fetch restaurant nodes
 	nodes, err := fetchRestaurantsInArea("./turkey-latest.osm.pbf", minLon, minLat, maxLon, maxLat)
 	if err != nil {
-		fmt.Println("Error fetching restaurant data:", err)
+		log.Printf("error scheduling cron for fetching places: %v", err)
 		return
 	}
 

@@ -18,9 +18,12 @@ import (
 
 func NewUserHandler() http.Handler {
 	r := chi.NewRouter()
-	r.Use(AssignTracer("user", "USER_CRUD", "persephone-user-crud"))
-	r.Post("/signup", UserSignupHandler)
-	r.Post("/login", UserLoginHandler)
+	var signUpTracer = AssignTracer("/signup", "USER_CRUD", "/signup")
+	var loginTracer = AssignTracer("/login", "USER_CRUD", "/login")
+	// declare routers with tracers wrapped around them
+	r.With(signUpTracer).Post("/signup", UserSignupHandler)
+	r.With(loginTracer).Post("/login", UserLoginHandler)
+
 	return r
 }
 

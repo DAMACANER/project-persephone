@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var RouterFunc = ReturnRouter
+var HandlerFunc = ReturnHandler
 
 // types.go contains the most common types used in the routers. if a struct is used only in one handler, or
 // strictly related to the handler, it will be defined in the handler file, usually at the top of the handler.
