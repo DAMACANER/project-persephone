@@ -114,12 +114,23 @@ func ValidatePassword(fl validator.FieldLevel) bool {
 }
 
 func ValidateUsernameOrEmailExists(fl validator.FieldLevel) bool {
-	currentField := fl.Field().String()
-	if currentField == "username" {
-		return ValidateUsername(fl)
-	} else if currentField == "email" {
-		return ValidateEmail(fl)
-	} else {
-		return false
+	currentField := fl.FieldName()
+	fieldValue := fl.Field()
+
+	switch currentField {
+	case "Username":
+		if fieldValue.String() != "" {
+			return ValidateUsername(fl)
+		} else if fl.Parent().FieldByName("Email").String() != "" {
+			return true
+		}
+	case "Email":
+		if fieldValue.String() != "" {
+			return ValidateEmail(fl)
+		} else if fl.Parent().FieldByName("Username").String() != "" {
+			return true
+		}
 	}
+
+	return false
 }
