@@ -559,7 +559,8 @@ func GetUser(r *http.Request) {
 			return
 		}
 	} else {
-		s.LogError(UUIDDoesNotExistsError(jwtContents.UUID), http.StatusBadRequest)
+		err := fmt.Errorf("uuid %s does not exist or it is not correct", jwtContents.UUID)
+		s.LogError(err, http.StatusBadRequest)
 		return
 	}
 	response.SessionToken = strings.Replace(r.Header.Get("Authorization"), "Bearer ", "", -1)
