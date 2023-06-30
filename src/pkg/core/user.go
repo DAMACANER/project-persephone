@@ -22,10 +22,12 @@ func NewUserHandler() http.Handler {
 	var signUpTracer = AssignTracer("/signup", "USER_CRUD", "/signup")
 	var loginTracer = AssignTracer("/login", "USER_CRUD", "/login")
 	var updateTracer = AssignTracer("/update", "USER_CRUD", "/update")
+	var deleteTracer = AssignTracer("/delete", "USER_CRUD", "/delete")
 	// declare routers with tracers wrapped around them
 	r.With(signUpTracer).Post("/signup", UserSignupHandler)
 	r.With(loginTracer).Post("/login", UserLoginHandler)
 	r.With(updateTracer).Post("/update", UserUpdateHandler)
+	r.With(deleteTracer).Post("/delete", UserDeleteHandler)
 
 	return r
 }
@@ -568,4 +570,35 @@ func GetUser(r *http.Request) {
 		return
 	}
 
+}
+
+type UserDeleteResponse struct {
+	Success bool `json:"success"`
+}
+
+func UserDeleteHandler(w http.ResponseWriter, r *http.Request) {
+	s := r.Context().Value(ServerKeyString).(*Server)
+	jwtContents, err := s.GetJWTData(r)
+	if err != nil {
+		s.LogError(err, http.StatusBadRequest)
+		return
+	}
+	deleteQuery := s.StmtBuilder.Delete(UserTableName).Where(squirrel.Eq{IDDBField: jwtContents.UUID})
+	sql, args, err := deleteQuery.ToSql()
+	if err != nil {
+		s.LogError(err, http.StatusInternalServerError)
+		return
+	}
+	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err = s.DB.Exec(to, sql, args...)
+	if err != nil {
+		s.LogError(err, http.StatusInternalServerError)
+		return
+	}
+	err = s.WriteResponse(UserDeleteResponse{Success: true}, http.StatusOK)
+	if err != nil {
+		s.LogError(err, http.StatusInternalServerError)
+		return
+	}
 }
