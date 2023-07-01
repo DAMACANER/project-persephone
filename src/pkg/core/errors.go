@@ -17,15 +17,15 @@ var UpdatedRecentlyError = func(recentlyUpdatedProperty string, updatedAt time.T
 var UUIDDoesNotExistsError = func(uuidDNE string) error {
 	return fmt.Errorf("uuid %s does not exist", uuidDNE)
 }
-var EmailAlreadyExistsError = errors.New("email already exists")
+var emailAlreadyExistsError = errors.New("email already exists") // Indicates that the email already exists in the system
 
-var UsernameAlreadyExistsError = errors.New("username already exists")
+var usernameAlreadyExistsError = errors.New("username already exists") // Indicates that the username already exists in the system
 
-var UserNotAllowed = errors.New("user role not whitelisted")
+var userNotAllowedError = errors.New("user role not whitelisted") // Indicates that the user role is not allowed
 
-var StatusNotAllowed = errors.New("token status not whitelisted")
+var statusNotAllowedError = errors.New("token status not whitelisted") // Indicates that the token status is not allowed
 
 type ErrorResponse struct {
-	Error     string `json:"error"`
-	RequestID string `json:"request_id"`
+    Error     string `json:"error"`
+    RequestID string `json:"request_id"`
 }
