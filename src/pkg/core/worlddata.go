@@ -14,9 +14,9 @@ func NewCityHandler() http.Handler {
 	var getStatesTracer = AssignTracer("/getStates", "WORLD_DATA", "GET_STATES")
 	var getCountriesTracer = AssignTracer("/getCounties", "WORLD_DATA", "GET_COUNTRIES")
 	r.With(JWTWhitelist([]string{tokenStatusActive}, nil)).Route("/", func(r chi.Router) {
-		r.With(getCitiesTracer).Post("/getCities", GetCities)
-		r.With(getStatesTracer).Post("/getStates", GetStates)
-		r.With(getCountriesTracer).Post("/getCountries", GetCountries)
+		r.With(getCitiesTracer).Post("/getCities", GetCitiesHandler)
+		r.With(getStatesTracer).Post("/getStates", GetStatesHandler)
+		r.With(getCountriesTracer).Post("/getCountries", GetCountriesHandler)
 	})
 	return r
 }
@@ -56,7 +56,7 @@ type GetCitiesResponse struct {
 	TotalPages  uint16 `json:"totalPages"`
 }
 
-func GetCities(w http.ResponseWriter, r *http.Request) {
+func GetCitiesHandler(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
 	var req GetCitiesRequest
 	if err := s.Bind(&req); err != nil {
@@ -123,7 +123,7 @@ func GetCities(w http.ResponseWriter, r *http.Request) {
 	resp.TotalCount = count
 	resp.ResultCount = uint16(len(cities))
 	resp.Cities = cities
-	resp.TotalPages = count / uint16(req.PageSize)
+	resp.TotalPages = count / req.PageSize
 	s.WriteResponse(resp, http.StatusOK)
 
 }
@@ -160,7 +160,7 @@ type GetStatesResponse struct {
 	ResultCount uint16 `json:"resultCount"`
 }
 
-func GetStates(w http.ResponseWriter, r *http.Request) {
+func GetStatesHandler(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
 	var req GetStatesRequest
 	if err := s.Bind(&req); err != nil {
@@ -223,7 +223,7 @@ func GetStates(w http.ResponseWriter, r *http.Request) {
 	resp.States = states
 	resp.TotalCount = uint16(len(states))
 	resp.ResultCount = uint16(len(states))
-	resp.TotalPages = count / uint16(req.PageSize)
+	resp.TotalPages = count / req.PageSize
 	s.WriteResponse(resp, http.StatusOK)
 }
 
@@ -278,13 +278,33 @@ type GetCountriesRequest struct {
 	PageSize uint16 `json:"page_size" binding:"required" validate:"lt=65535,gt=0"`
 }
 
+// GetCountriesResponse is the response body for GetCountriesHandler.
+//
+// swagger:model GetCountriesResponse
 type GetCountriesResponse struct {
-	Countries  CountriesInDB `json:"countries"`
-	TotalCount uint16        `json:"totalCount"`
-	TotalPages uint16        `json:"totalPages"`
+	// Countries represents a list of countries
+	Countries CountriesInDB `json:"countries"`
+	// TotalCount represents countries count in the database
+	TotalCount uint16 `json:"totalCount"`
+	// ResultCount represents Query result count
+	ResultCount uint16 `json:"resultCount"`
+	// TotalPages represents total number of pages, calculated by dividing TotalCount by PageSize in the GetCountriesRequest
+	TotalPages uint16 `json:"totalPages"`
 }
 
-func GetCountries(w http.ResponseWriter, r *http.Request) {
+// GetCountriesHandler handles the HTTP request to get a paginated list of countries.
+//
+// @Summary Get Countries
+// @Description Returns a paginated list of countries.
+// @Tags Countries
+// @Accept json
+// @Produce json
+// @Body {object} GetCountriesRequest
+// @Success 200 {object} GetCountriesResponse
+// @Failure 400 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /api/world/countries [post]
+func GetCountriesHandler(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
 	var req GetCountriesRequest
 	if err := s.Bind(&req); err != nil {
@@ -358,5 +378,6 @@ func GetCountries(w http.ResponseWriter, r *http.Request) {
 	resp.Countries = countries
 	resp.TotalCount = uint16(len(countries))
 	resp.TotalPages = uint16(math.Ceil(float64(totalCount) / float64(req.PageSize)))
+	resp.ResultCount = uint16(len(countries))
 	s.WriteResponse(resp, http.StatusOK)
 }

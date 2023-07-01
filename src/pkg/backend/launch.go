@@ -13,5 +13,8 @@ func LaunchBackend() {
 	router := chi.NewRouter()
 	router.Mount("/", handler)
 	fmt.Printf("Server is running on port 3000\n")
-	http.ListenAndServe(":3000", router)
+	if err := http.ListenAndServe(":3000", router); err != nil {
+		panic(err)
+	}
+
 }

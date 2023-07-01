@@ -139,32 +139,6 @@ func (s Server) GetUniqueUUID(tableName string, dbIDField string) (uuid.UUID, er
 	}
 }
 
-// removeInvalidCharacters removes invalid characters from the JSON body.
-func removeInvalidCharacters(body []byte) []byte {
-	// Define invalid characters you want to remove from the JSON body
-	invalidChars := []byte{'\n', '\r'}
-
-	// Remove invalid characters
-	cleanedBody := make([]byte, 0, len(body))
-	for _, b := range body {
-		if !contains(invalidChars, b) {
-			cleanedBody = append(cleanedBody, b)
-		}
-	}
-
-	return cleanedBody
-}
-
-// contains checks if a byte slice contains a specific byte.
-func contains(slice []byte, b byte) bool {
-	for _, item := range slice {
-		if item == b {
-			return true
-		}
-	}
-	return false
-}
-
 func HashPassword(password string) (string, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {

@@ -136,11 +136,11 @@ func JWTWhitelist(tokenStatus []string, userRole []string) func(next http.Handle
 				return
 			}
 			if !TokenStatusWhitelist(jwtContents, tokenStatus) {
-				server.LogError(StatusNotAllowed, http.StatusForbidden)
+				server.LogError(userNotAllowedError, http.StatusForbidden)
 				return
 			}
 			if !UserRoleWhiteList(jwtContents, userRole) {
-				server.LogError(UserNotAllowed, http.StatusForbidden)
+				server.LogError(userNotAllowedError, http.StatusForbidden)
 				return
 			}
 			next.ServeHTTP(w, r)

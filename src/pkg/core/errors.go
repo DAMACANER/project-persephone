@@ -6,15 +6,15 @@ import (
 	"time"
 )
 
-var EmailIsSameWithRequestedError = errors.New("email is already same with requested")
+var emailIsSameWithRequestedError = errors.New("email is already same with requested")
 
-var UsernameIsSameWithRequestedError = errors.New("username is already same with requested")
+var usernameIsSameWithRequestedError = errors.New("username is already same with requested")
 
-var UpdatedRecentlyError = func(recentlyUpdatedProperty string, updatedAt time.Time, allowedInterval time.Duration) error {
+var updatedRecentlyError = func(recentlyUpdatedProperty string, updatedAt time.Time, allowedInterval time.Duration) error {
 	return fmt.Errorf("%s is updated recently, you can update it again after %s", recentlyUpdatedProperty, updatedAt.Add(allowedInterval).Sub(time.Now()))
 }
 
-var UUIDDoesNotExistsError = func(uuidDNE string) error {
+var UUIDDoesNotExistError = func(uuidDNE string) error {
 	return fmt.Errorf("uuid %s does not exist", uuidDNE)
 }
 var emailAlreadyExistsError = errors.New("email already exists") // Indicates that the email already exists in the system
@@ -26,6 +26,6 @@ var userNotAllowedError = errors.New("user role not whitelisted") // Indicates t
 var statusNotAllowedError = errors.New("token status not whitelisted") // Indicates that the token status is not allowed
 
 type ErrorResponse struct {
-    Error     string `json:"error"`
-    RequestID string `json:"request_id"`
+	Error     string `json:"error"`
+	RequestID string `json:"request_id"`
 }

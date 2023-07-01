@@ -184,7 +184,7 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if rows.Next() {
-			s.LogError(EmailAlreadyExistsError, http.StatusBadRequest)
+			s.LogError(emailAlreadyExistsError, http.StatusBadRequest)
 			return
 		} else {
 			// now do the same check for user
@@ -202,7 +202,7 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if rows.Next() {
-				s.LogError(UsernameAlreadyExistsError, http.StatusBadRequest)
+				s.LogError(usernameAlreadyExistsError, http.StatusBadRequest)
 				return
 			} else {
 				// do the same check for phone number
@@ -514,11 +514,11 @@ func UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	if req.Email != "" {
 		if !req.Test {
 			if req.Email == user.Email {
-				s.LogError(EmailIsSameWithRequestedError, http.StatusBadRequest)
+				s.LogError(emailIsSameWithRequestedError, http.StatusBadRequest)
 				return
 			}
 			if time.Now().Sub(user.EmailLastUpdatedAt) < AllowedUsernameUpdateInterval {
-				s.LogError(UpdatedRecentlyError("email", user.EmailLastUpdatedAt, AllowedUserEmailUpdateInterval), http.StatusBadRequest)
+				s.LogError(updatedRecentlyError("email", user.EmailLastUpdatedAt, AllowedUserEmailUpdateInterval), http.StatusBadRequest)
 				return
 			}
 		}
@@ -528,11 +528,11 @@ func UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	if req.Username != "" {
 		if !req.Test {
 			if req.Username == user.Username {
-				s.LogError(UsernameIsSameWithRequestedError, http.StatusBadRequest)
+				s.LogError(usernameIsSameWithRequestedError, http.StatusBadRequest)
 				return
 			}
 			if time.Now().Sub(user.UsernameLastUpdatedAt) < AllowedUsernameUpdateInterval {
-				s.LogError(UpdatedRecentlyError("username", user.UsernameLastUpdatedAt, AllowedUsernameUpdateInterval), http.StatusBadRequest)
+				s.LogError(updatedRecentlyError("username", user.UsernameLastUpdatedAt, AllowedUsernameUpdateInterval), http.StatusBadRequest)
 				return
 			}
 		}
@@ -681,7 +681,7 @@ func GetUser(r *http.Request) {
 			return
 		}
 	} else {
-		s.LogError(UUIDDoesNotExistsError(jwtContents.UUID), http.StatusBadRequest)
+		s.LogError(UUIDDoesNotExistError(jwtContents.UUID), http.StatusBadRequest)
 		return
 	}
 	response.SessionToken = strings.Replace(r.Header.Get("Authorization"), "Bearer ", "", -1)
