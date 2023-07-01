@@ -1,0 +1,404 @@
+definitions:
+  core.ErrorResponse:
+    properties:
+      error:
+        type: string
+    type: object
+  core.GetUserDataResponse:
+    properties:
+      refreshToken:
+        description: Refresh token for the user.
+        type: string
+      sessionToken:
+        description: Session token for the user.
+        type: string
+      user:
+        description: User information.
+        properties:
+          banned:
+            description: Flag indicating if the user is banned.
+            type: boolean
+          createdAt:
+            description: Timestamp indicating when the user was created.
+            type: string
+          email:
+            description: Email of the user.
+            type: string
+          emailLastUpdatedAt:
+            description: Timestamp indicating when the email was last updated.
+            type: string
+          id:
+            description: User ID.
+            type: string
+          lastLoginAt:
+            description: Timestamp indicating when the user last logged in.
+            type: string
+          location:
+            description: Location information of the user.
+            properties:
+              city:
+                description: City where the user is located.
+                type: string
+              country:
+                description: Country where the user is located.
+                type: string
+            type: object
+          phoneNumber:
+            description: Phone number of the user.
+            type: string
+          reputation:
+            description: Reputation of the user.
+            type: integer
+          role:
+            description: Role of the user.
+            type: string
+          updatedAt:
+            description: Timestamp indicating when the user was last updated.
+            type: string
+          username:
+            description: Username of the user.
+            type: string
+          usernameLastUpdatedAt:
+            description: Timestamp indicating when the username was last updated.
+            type: string
+          verified:
+            description: Flag indicating if the user is verified.
+            type: boolean
+        type: object
+    type: object
+  core.UserDeleteResponse:
+    properties:
+      success:
+        description: |-
+          Success indicates if the user was deleted successfully.
+          Required: true
+        type: boolean
+    type: object
+  core.UserLoginRequest:
+    properties:
+      email:
+        description: Email of the user.
+        type: string
+      password:
+        description: |-
+          Password of the user.
+
+          required: true
+        type: string
+      test:
+        description: Test flag to indicate if it's a test.
+        type: boolean
+      username:
+        description: Username of the user.
+        type: string
+    required:
+    - password
+    type: object
+  core.UserLoginResponse:
+    properties:
+      refreshToken:
+        description: Refresh token for the user.
+        type: string
+      sessionToken:
+        description: Session token for the user.
+        type: string
+      user:
+        description: User information.
+        properties:
+          banned:
+            description: Flag indicating if the user is banned.
+            type: boolean
+          createdAt:
+            description: Timestamp indicating when the user was created.
+            type: string
+          email:
+            description: Email of the user.
+            type: string
+          emailLastUpdatedAt:
+            description: Timestamp indicating when the email was last updated.
+            type: string
+          id:
+            description: User ID.
+            type: string
+          lastLoginAt:
+            description: Timestamp indicating when the user last logged in.
+            type: string
+          location:
+            description: Location information of the user.
+            properties:
+              city:
+                description: City where the user is located.
+                type: string
+              country:
+                description: Country where the user is located.
+                type: string
+            type: object
+          phoneNumber:
+            description: Phone number of the user.
+            type: string
+          reputation:
+            description: Reputation of the user.
+            type: integer
+          role:
+            description: Role of the user.
+            type: string
+          updatedAt:
+            description: Timestamp indicating when the user was last updated.
+            type: string
+          username:
+            description: Username of the user.
+            type: string
+          usernameLastUpdatedAt:
+            description: Timestamp indicating when the username was last updated.
+            type: string
+          verified:
+            description: Flag indicating if the user is verified.
+            type: boolean
+        type: object
+    type: object
+  core.UserSignupRequest:
+    properties:
+      city:
+        description: City where the user is located.
+        type: string
+      country:
+        description: Country where the user is located.
+        type: string
+      email:
+        description: |-
+          Email of the user.
+
+          required: true
+          format: email
+        type: string
+      password:
+        description: |-
+          Password of the user.
+
+          required: true
+        type: string
+      phoneNumber:
+        description: |-
+          Phone number of the user.
+
+          format: e164
+        type: string
+      test:
+        description: Test flag to indicate if it's a test.
+        type: boolean
+      username:
+        description: |-
+          Username of the user.
+
+          required: true
+        type: string
+    required:
+    - email
+    - password
+    - username
+    type: object
+  core.UserUpdateRequest:
+    properties:
+      email:
+        description: |-
+          User's email.
+
+          This field is required and should be a valid email address.
+        type: string
+      test:
+        description: Test flag for testing purposes.
+        type: boolean
+      username:
+        description: |-
+          User's username.
+
+          This field is required and should be a valid username.
+        type: string
+    type: object
+  core.UserUpdateResponse:
+    properties:
+      refreshToken:
+        description: Refresh token for the user.
+        type: string
+      sessionToken:
+        description: Session token for the user.
+        type: string
+      user:
+        description: User information.
+        properties:
+          banned:
+            description: Flag indicating if the user is banned.
+            type: boolean
+          createdAt:
+            description: Timestamp indicating when the user was created.
+            type: string
+          email:
+            description: Email of the user.
+            type: string
+          emailLastUpdatedAt:
+            description: Timestamp indicating when the email was last updated.
+            type: string
+          id:
+            description: User ID.
+            type: string
+          lastLoginAt:
+            description: Timestamp indicating when the user last logged in.
+            type: string
+          location:
+            description: Location information of the user.
+            properties:
+              city:
+                description: City where the user is located.
+                type: string
+              country:
+                description: Country where the user is located.
+                type: string
+            type: object
+          phoneNumber:
+            description: Phone number of the user.
+            type: string
+          reputation:
+            description: Reputation of the user.
+            type: integer
+          role:
+            description: Role of the user.
+            type: string
+          updatedAt:
+            description: Timestamp indicating when the user was last updated.
+            type: string
+          username:
+            description: Username of the user.
+            type: string
+          usernameLastUpdatedAt:
+            description: Timestamp indicating when the username was last updated.
+            type: string
+          verified:
+            description: Flag indicating if the user is verified.
+            type: boolean
+        type: object
+    type: object
+info:
+  contact: {}
+paths:
+  /api/user/delete:
+    delete:
+      description: Deletes a user based on the provided JWT token.
+      parameters:
+      - description: JWT token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      responses:
+        "200":
+          description: User successfully deleted.
+          schema:
+            $ref: '#/definitions/core.UserDeleteResponse'
+        "400":
+          description: Bad request, may occur if the JWT token is invalid or expired
+          schema:
+            $ref: '#/definitions/core.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ErrorResponse'
+      summary: Delete User
+      tags:
+      - User
+  /api/user/login:
+    post:
+      consumes:
+      - application/json
+      description: Handles the HTTP request for user login.
+      parameters:
+      - description: Login form data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/core.UserLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successful login
+          schema:
+            $ref: '#/definitions/core.UserLoginResponse'
+        "400":
+          description: Bad request or unauthorized
+          schema:
+            $ref: '#/definitions/core.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ErrorResponse'
+      summary: Handle user login
+      tags:
+      - User
+  /api/user/signup:
+    post:
+      consumes:
+      - application/json
+      description: Handles the HTTP request for user signup.
+      parameters:
+      - description: Signup form data
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/core.UserSignupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Successful signup
+          schema:
+            $ref: '#/definitions/core.GetUserDataResponse'
+        "400":
+          description: Bad request or user already exists
+          schema:
+            $ref: '#/definitions/core.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ErrorResponse'
+      summary: Handle user signup
+      tags:
+      - User
+  /api/user/update:
+    post:
+      description: Handles the request to update a user's email or username.
+      parameters:
+      - description: JWT token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: User update data
+        in: body
+        name: userUpdateRequest
+        required: true
+        schema:
+          $ref: '#/definitions/core.UserUpdateRequest'
+      responses:
+        "200":
+          description: Updated user data
+          schema:
+            $ref: '#/definitions/core.UserUpdateResponse'
+        "400":
+          description: Bad request, may occur if the request is invalid, or user cant
+            update username or email for now
+          schema:
+            $ref: '#/definitions/core.ErrorResponse'
+        "401":
+          description: Unauthorized, may occur if the JWT token is invalid or expired
+          schema:
+            $ref: '#/definitions/core.ErrorResponse'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/core.ErrorResponse'
+      summary: Update User
+      tags:
+      - User
+swagger: "2.0"

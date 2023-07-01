@@ -6,7 +6,7 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
+	"golang.org/x/exp/slog"
 	"net/http"
 	"time"
 )
@@ -44,7 +44,7 @@ type Server struct {
 	//		func (s Server) CreateUser() {
 	//			s.Logger.Info("User created")
 	//		}
-	Logger *zap.SugaredLogger
+	Logger *slog.Logger
 	// Tracer contains a Jaeger tracer that is used to trace the specific route specified in middleware initialization.
 	//
 	// Example:
@@ -76,6 +76,7 @@ type Server struct {
 
 	Validator   *validator.Validate
 	Writer      http.ResponseWriter
+	Request     *http.Request
 	StmtBuilder squirrel.StatementBuilderType
 }
 
@@ -87,10 +88,10 @@ type JWTFields struct {
 	// UUID is the id representing the user, and the key of the user in the database bucket "users"
 	UUID string `json:"uuid"`
 	// Expires shows the expiration datetime in unix.
-	Expires int64  `json:"exp"`
-	Role    string `json:"role"`
-	Token   string `json:"token"`
-	Status  string `json:"status"`
+	Expires float64 `json:"exp"`
+	Role    string  `json:"role"`
+	Token   string  `json:"token"`
+	Status  string  `json:"status"`
 }
 
 const (
