@@ -8,13 +8,14 @@ import (
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"golang.org/x/exp/slices"
+	"golang.org/x/exp/slog"
 	"net/http"
+	"os"
 	"time"
 
 	_ "github.com/joho/godotenv/autoload"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
-	"go.uber.org/zap"
 )
 
 func AssignServer(next http.Handler) http.Handler {
@@ -30,13 +31,8 @@ func AssignLogger() func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			server := r.Context().Value(ServerKeyString).(*Server)
-			logger, err := zap.NewProduction()
-			if err != nil {
-				panic(err)
-			}
-			defer logger.Sync()
-			sugar := logger.Sugar().WithOptions()
-			server.Logger = sugar
+			logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+			server.Logger = logger
 			ctx := context.WithValue(r.Context(), ServerKeyString, server)
 			r = r.WithContext(ctx)
 			next.ServeHTTP(w, r)
@@ -111,6 +107,15 @@ func AssignWriter(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
+func AssignRequest(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := r.Context().Value(ServerKeyString).(*Server)
+		server.Request = r
+		ctx := context.WithValue(r.Context(), ServerKeyString, server)
+		r = r.WithContext(ctx)
+		next.ServeHTTP(w, r)
+	})
+}
 
 func AssignQueryBuilder(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -121,10 +126,38 @@ func AssignQueryBuilder(next http.Handler) http.Handler {
 		next.ServeHTTP(w, r)
 	})
 }
-func RoleWhitelist(jwtContents JWTFields, role []string) bool {
-	return slices.Contains(role, jwtContents.Role)
+func JWTWhitelist(tokenStatus []string, userRole []string) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			server := r.Context().Value(ServerKeyString).(*Server)
+			jwtContents, err := server.GetJWTData()
+			if err != nil {
+				server.LogError(err, http.StatusInternalServerError)
+				return
+			}
+			if !TokenStatusWhitelist(jwtContents, tokenStatus) {
+				server.LogError(StatusNotAllowed, http.StatusForbidden)
+				return
+			}
+			if !UserRoleWhiteList(jwtContents, userRole) {
+				server.LogError(UserNotAllowed, http.StatusForbidden)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func TokenStatusWhitelist(jwtContents JWTFields, status []string) bool {
+	if status == nil {
+		return jwtContents.Status != ""
+	}
 	return slices.Contains(status, jwtContents.Status)
+}
+
+func UserRoleWhiteList(jwtContents JWTFields, role []string) bool {
+	if role == nil {
+		return jwtContents.Role != ""
+	}
+	return slices.Contains(role, jwtContents.Role)
 }

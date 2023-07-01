@@ -1,6 +1,7 @@
 package core
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"encoding/xml"
@@ -14,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/qedus/osmpbf"
+	httpSwagger "github.com/swaggo/http-swagger"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -22,30 +24,49 @@ import (
 	"log"
 	"net/http"
 	"os"
+	_ "persephone/docs"
 	"runtime"
 	"time"
 )
 
 func (s Server) LogError(err error, httpCode int) {
-	// dont log if middleware is not yet initialized
+	// don`t log if middleware is not yet initialized
+	reqID := middleware.GetReqID(s.Request.Context())
+	traceback := make([]byte, 1<<16)
+	runtime.Stack(traceback, true)
+	headers := s.Request.Header
+	jwtContents, errJWTData := s.GetJWTData()
+	if errJWTData != nil {
+		log.Printf("Error getting JWT data: %v", err)
+	}
+	jwtMarshal, errMarshalData := json.MarshalIndent(jwtContents, "", "    ")
+	if errMarshalData != nil {
+		log.Printf("Error marshaling JWT data: %v", err)
+	}
 	if s.Tracer != nil {
 		s.Tracer.SetAttributes(attribute.KeyValue{
-			Key: "err", Value: attribute.StringValue(err.Error()),
+			Key: "reqID", Value: attribute.StringValue(reqID),
+		})
+		s.Tracer.SetAttributes(attribute.KeyValue{
+			Key: "traceback", Value: attribute.StringValue(string(bytes.TrimSpace(bytes.TrimRight(traceback, "\x00")))),
+		})
+		s.Tracer.SetAttributes(attribute.KeyValue{
+			Key: "headers", Value: attribute.StringValue(fmt.Sprintf("%v", headers)),
+		})
+		s.Tracer.SetAttributes(attribute.KeyValue{
+			Key: "jwt", Value: attribute.StringValue(string(jwtMarshal)),
 		})
 		s.Tracer.SetStatus(codes.Error, err.Error())
+		// record error
+		s.Tracer.RecordError(err)
 	}
 	if s.Logger != nil {
-		s.Logger.Error(err)
+		s.Logger.Error(err.Error(), reqID)
 	}
 	if s.Writer != nil {
-		s.Logger.Error(err)
 		s.Writer.WriteHeader(httpCode)
-		var errJSON = struct {
-			Error string `json:"error"`
-		}{
-			Error: err.Error(),
-		}
-		errMessageJSON, _ := json.Marshal(errJSON)
+		s.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+		errMessageJSON, _ := json.MarshalIndent(ErrorResponse{Error: err.Error(), RequestID: reqID}, "", "    ")
 		s.Writer.Write(errMessageJSON)
 	}
 }
@@ -73,26 +94,15 @@ func (s Server) ServerHealthCheck() (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	// check if logger is working
-	err = s.Logger.Sync()
-	if err != nil {
-		return false, err
-	}
 	return true, nil
 }
 
-func DecodeJSONBody(r *http.Request, desiredStruct interface{}) error {
-	body, err := io.ReadAll(r.Body)
+func (s Server) Bind(toMarshal interface{}) error {
+	err := json.NewDecoder(s.Request.Body).Decode(&toMarshal)
 	if err != nil {
+		s.LogError(err, http.StatusBadRequest)
 		return err
 	}
-	// Remove invalid characters from the JSON body
-	cleanBody := removeInvalidCharacters(body)
-	err = json.Unmarshal(cleanBody, desiredStruct)
-	if err != nil {
-		return errors.New("failed to parse JSON body")
-	}
-
 	return nil
 }
 
@@ -134,7 +144,7 @@ func removeInvalidCharacters(body []byte) []byte {
 	// Define invalid characters you want to remove from the JSON body
 	invalidChars := []byte{'\n', '\r'}
 
-	// Remove invalid characterst
+	// Remove invalid characters
 	cleanedBody := make([]byte, 0, len(body))
 	for _, b := range body {
 		if !contains(invalidChars, b) {
@@ -163,9 +173,9 @@ func HashPassword(password string) (string, error) {
 	return string(hashedPassword), nil
 }
 
-func (s Server) GetJWTData(r *http.Request) (JWTFields, error) {
+func (s Server) GetJWTData() (JWTFields, error) {
 	// find Authorization header
-	header := r.Header.Get("Authorization")
+	header := s.Request.Header.Get("Authorization")
 	if header == "" {
 		return JWTFields{}, errors.New("no Authorization header")
 	}
@@ -197,7 +207,7 @@ func (s Server) GetJWTData(r *http.Request) (JWTFields, error) {
 		case JWTUUIDKey:
 			fields.UUID = value.(string)
 		case JWTExpiresKey:
-			fields.Expires = int64(value.(float64))
+			fields.Expires = value.(float64)
 		case JWTRoleKey:
 			fields.Role = value.(string)
 		case JWTStatusKey:
@@ -255,6 +265,7 @@ func ReturnHandler() http.Handler {
 	// please do not fiddle with middleware order.
 	router.Use(AssignServer)
 	router.Use(AssignWriter)
+	router.Use(AssignRequest)
 	router.Use(AssignLogger())
 	router.Use(AssignValidator)
 	router.Use(AssignQueryBuilder)
@@ -270,6 +281,10 @@ func ReturnHandler() http.Handler {
 	// MOUNT YOUR ROUTERS HERE.
 	router.Route("/api", func(r chi.Router) {
 		r.Mount("/user", NewUserHandler())
+		r.Mount("/world", NewCityHandler())
+		r.Get("/swagger/*", httpSwagger.Handler(
+			httpSwagger.URL("http://localhost:3000/api/swagger/doc.json"),
+		))
 	})
 	return otelhttp.NewHandler(router, "server", otelhttp.WithSpanNameFormatter(func(operation string, r *http.Request) string {
 		return operation + " " + r.URL.Path

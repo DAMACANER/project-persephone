@@ -25,9 +25,9 @@ func NewUserHandler() http.Handler {
 	var deleteTracer = AssignTracer("/delete", "USER_CRUD", "/delete")
 	// declare routers with tracers wrapped around them
 	r.With(signUpTracer).Post("/signup", UserSignupHandler)
-	r.With(loginTracer).Post("/login", UserLoginHandler)
-	r.With(updateTracer).Post("/update", UserUpdateHandler)
-	r.With(deleteTracer).Post("/delete", UserDeleteHandler)
+	r.With(loginTracer, JWTWhitelist([]string{tokenStatusWaitingLogin}, nil)).Post("/login", UserLoginHandler)
+	r.With(updateTracer, JWTWhitelist([]string{tokenStatusActive}, nil)).Post("/update", UserUpdateHandler)
+	r.With(deleteTracer, JWTWhitelist([]string{tokenStatusActive}, nil)).Delete("/delete", UserDeleteHandler)
 
 	return r
 }
@@ -106,26 +106,63 @@ var updateColumns = []string{
 	ReputationDBField,
 }
 
+// UserSignupRequest represents the data required for user signup.
+//
+// swagger:model UserSignupRequest
 type UserSignupRequest struct {
-	Email    string `json:"email" validate:"emailSpec" binding:"required"`
+	// Email of the user.
+	//
+	// required: true
+	// format: email
+	Email string `json:"email" validate:"emailSpec" binding:"required"`
+
+	// Username of the user.
+	//
+	// required: true
 	Username string `json:"username" validate:"usernameSpec" binding:"required"`
+
+	// Password of the user.
+	//
+	// required: true
 	Password string `json:"password" validate:"passwordSpec" binding:"required"`
-	Test     bool   `json:"test" validate:"boolean"`
+
+	// Test flag to indicate if it's a test.
+	Test bool `json:"test" validate:"boolean"`
+
+	// Phone number of the user.
+	//
+	// format: e164
 	PhoneNum string `json:"phoneNumber" validate:"e164"`
-	City     string `json:"city"`
-	Country  string `json:"country"`
+
+	// City where the user is located.
+	City string `json:"city"`
+
+	// Country where the user is located.
+	Country string `json:"country"`
 }
 
 type UserSignupResponse GetUserDataResponse
 
+// UserSignupHandler handles the HTTP request for user signup.
+//
+//	@Summary		Handle user signup
+//	@Description	Handles the HTTP request for user signup.
+//	@Tags			User
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		UserSignupRequest	true	"Signup form data"
+//	@Success		200		{object}	GetUserDataResponse	"Successful signup"
+//	@Failure		400		{object}	ErrorResponse		"Bad request or user already exists"
+//	@Failure		500		{object}	ErrorResponse		"Internal server error"
+//	@Router			/api/user/signup [post]
 func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
 	var signUpForm UserSignupRequest
-	if err := DecodeJSONBody(r, &signUpForm); err != nil {
+	if err := s.Bind(&signUpForm); err != nil {
 		s.LogError(err, http.StatusBadRequest)
 		return
 	}
-
+	fmt.Printf("signUpForm: %+v\n", signUpForm)
 	if !signUpForm.Test {
 		err := s.Validator.Struct(signUpForm)
 		if err != nil {
@@ -301,25 +338,48 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 	GetUser(r)
 }
 
+// UserLoginRequest represents the data required for user login.
+//
+// swagger:model UserLoginRequest
 type UserLoginRequest struct {
-	Email    string `json:"email" validate:"usernameOrEmailExists"`
+	// Email of the user.
+	Email string `json:"email" validate:"usernameOrEmailExists"`
+
+	// Username of the user.
 	Username string `json:"username" validate:"usernameOrEmailExists"`
+
+	// Password of the user.
+	//
+	// required: true
 	Password string `json:"password" binding:"required"`
-	Test     bool   `json:"test"`
+
+	// Test flag to indicate if it's a test.
+	Test bool `json:"test"`
 }
 
 type UserLoginResponse GetUserDataResponse
 
+// UserLoginHandler handles the HTTP request for user login.
+//
+//	@Summary		Handle user login
+//	@Description	Handles the HTTP request for user login.
+//	@Tags			User
+//	@Accept			json
+//	@Produce		json
+//	@Param			body	body		UserLoginRequest	true	"Login form data"
+//	@Success		200		{object}	UserLoginResponse	"Successful login"
+//	@Failure		400		{object}	ErrorResponse		"Bad request or unauthorized"
+//	@Failure		500		{object}	ErrorResponse		"Internal server error"
+//	@Router			/api/user/login [post]
 func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
 	var uid string
 	if r.Header.Get("Authorization") != "" || strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
-		jwtContents, err := s.GetJWTData(r)
+		jwtContents, err := s.GetJWTData()
 		if err != nil {
 			s.LogError(err, http.StatusBadRequest)
 			return
 		}
-		TokenStatusWhitelist(jwtContents, []string{tokenStatusWaitingLogin})
 		uid = jwtContents.UUID
 	} else {
 		var signInForm UserLoginRequest
@@ -375,10 +435,20 @@ func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 	GetUser(r)
 }
 
+// UserUpdateRequest represents the request for updating user data.
 type UserUpdateRequest struct {
-	Email    string `json:"email" validate:"usernameOrEmailExists"`
+	// User's email.
+	//
+	// This field is required and should be a valid email address.
+	Email string `json:"email" validate:"usernameOrEmailExists"`
+
+	// User's username.
+	//
+	// This field is required and should be a valid username.
 	Username string `json:"username" validate:"usernameOrEmailExists"`
-	Test     bool   `json:"test"`
+
+	// Test flag for testing purposes.
+	Test bool `json:"test"`
 }
 type UserUpdateDBFields struct {
 	EmailLastUpdatedAt    time.Time `db:"email_last_updated_at"`
@@ -389,9 +459,21 @@ type UserUpdateDBFields struct {
 }
 type UserUpdateResponse GetUserDataResponse
 
+// UserUpdateHandler handles the user update request.
+//
+//	@Summary		Update User
+//	@Description	Handles the request to update a user's email or username.
+//	@Tags			User
+//	@Param			Authorization		header		string				true	"JWT token"
+//	@Param			userUpdateRequest	body		UserUpdateRequest	true	"User update data"
+//	@Success		200					{object}	UserUpdateResponse	"Updated user data"
+//	@Failure		400					{object}	ErrorResponse		"Bad request, may occur if the request is invalid, or user cant update username or email for now"
+//	@Failure		401					{object}	ErrorResponse		"Unauthorized, may occur if the JWT token is invalid or expired"
+//	@Failure		500					{object}	ErrorResponse		"Internal server error"
+//	@Router			/api/user/update [post]
 func UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
-	jwtContents, err := s.GetJWTData(r)
+	jwtContents, err := s.GetJWTData()
 	if err != nil {
 		s.LogError(err, http.StatusBadRequest)
 	}
@@ -477,33 +559,71 @@ func UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 
 }
 
+// GetUserDataResponse represents the response data for retrieving user data.
+//
+// swagger:model GetUserDataResponse
 type GetUserDataResponse struct {
+	// User information.
 	User struct {
-		ID          string    `json:"id"`
-		Email       string    `json:"email"`
-		Username    string    `json:"username"`
-		CreatedAt   time.Time `json:"createdAt"`
-		UpdatedAt   time.Time `json:"updatedAt"`
-		PhoneNumber string    `json:"phoneNumber"`
-		Role        string    `json:"role"`
-		Banned      bool      `json:"banned"`
-		Reputation  int64     `json:"reputation"`
-		Location    struct {
-			City    string `json:"city"`
+		// User ID.
+		ID string `json:"id"`
+
+		// Email of the user.
+		Email string `json:"email"`
+
+		// Username of the user.
+		Username string `json:"username"`
+
+		// Timestamp indicating when the user was created.
+		CreatedAt time.Time `json:"createdAt"`
+
+		// Timestamp indicating when the user was last updated.
+		UpdatedAt time.Time `json:"updatedAt"`
+
+		// Phone number of the user.
+		PhoneNumber string `json:"phoneNumber"`
+
+		// Role of the user.
+		Role string `json:"role"`
+
+		// Flag indicating if the user is banned.
+		Banned bool `json:"banned"`
+
+		// Reputation of the user.
+		Reputation int64 `json:"reputation"`
+
+		// Location information of the user.
+		Location struct {
+			// City where the user is located.
+			City string `json:"city"`
+
+			// Country where the user is located.
 			Country string `json:"country"`
-		}
-		Verified              bool      `json:"verified"`
-		EmailLastUpdatedAt    time.Time `json:"emailLastUpdatedAt"`
+		} `json:"location"`
+
+		// Flag indicating if the user is verified.
+		Verified bool `json:"verified"`
+
+		// Timestamp indicating when the email was last updated.
+		EmailLastUpdatedAt time.Time `json:"emailLastUpdatedAt"`
+
+		// Timestamp indicating when the username was last updated.
 		UsernameLastUpdatedAt time.Time `json:"usernameLastUpdatedAt"`
-		LastLoginAt           time.Time `json:"lastLoginAt"`
+
+		// Timestamp indicating when the user last logged in.
+		LastLoginAt time.Time `json:"lastLoginAt"`
 	} `json:"user"`
+
+	// Session token for the user.
 	SessionToken string `json:"sessionToken"`
+
+	// Refresh token for the user.
 	RefreshToken string `json:"refreshToken"`
 }
 
 func GetUser(r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
-	jwtContents, err := s.GetJWTData(r)
+	jwtContents, err := s.GetJWTData()
 	if err != nil {
 		s.LogError(err, http.StatusBadRequest)
 		return
@@ -572,13 +692,30 @@ func GetUser(r *http.Request) {
 
 }
 
+// UserDeleteResponse represents the response when a user is successfully deleted.
+//
+// swagger:response UserDeleteResponse
 type UserDeleteResponse struct {
+	// Success indicates if the user was deleted successfully.
+	// Required: true
 	Success bool `json:"success"`
 }
 
+// UserDeleteHandler deletes a user based on the provided JWT token.
+//
+// This endpoint deletes the user associated with the provided JWT token.
+//
+//	@Summary		Delete User
+//	@Description	Deletes a user based on the provided JWT token.
+//	@Tags			User
+//	@Param			Authorization	header		string				true	"JWT token"
+//	@Success		200				{object}	UserDeleteResponse	"User successfully deleted."
+//	@Failure		400				{object}	ErrorResponse		"Bad request, may occur if the JWT token is invalid or expired"
+//	@Failure		500				{object}	ErrorResponse		"Internal server error"
+//	@Router			/api/user/delete [delete]
 func UserDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
-	jwtContents, err := s.GetJWTData(r)
+	jwtContents, err := s.GetJWTData()
 	if err != nil {
 		s.LogError(err, http.StatusBadRequest)
 		return

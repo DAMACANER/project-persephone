@@ -20,3 +20,12 @@ var UUIDDoesNotExistsError = func(uuidDNE string) error {
 var EmailAlreadyExistsError = errors.New("email already exists")
 
 var UsernameAlreadyExistsError = errors.New("username already exists")
+
+var UserNotAllowed = errors.New("user role not whitelisted")
+
+var StatusNotAllowed = errors.New("token status not whitelisted")
+
+type ErrorResponse struct {
+	Error     string `json:"error"`
+	RequestID string `json:"request_id"`
+}

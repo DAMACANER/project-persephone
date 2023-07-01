@@ -1,0 +1,544 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "contact": {}
+    },
+    "paths": {
+        "/api/user/delete": {
+            "delete": {
+                "description": "Deletes a user based on the provided JWT token.",
+                "tags": [
+                    "User"
+                ],
+                "summary": "Delete User",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "User successfully deleted.",
+                        "schema": {
+                            "$ref": "#/definitions/core.UserDeleteResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request, may occur if the JWT token is invalid or expired",
+                        "schema": {
+                            "$ref": "#/definitions/core.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/user/login": {
+            "post": {
+                "description": "Handles the HTTP request for user login.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "User"
+                ],
+                "summary": "Handle user login",
+                "parameters": [
+                    {
+                        "description": "Login form data",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/core.UserLoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful login",
+                        "schema": {
+                            "$ref": "#/definitions/core.UserLoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request or unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/core.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/user/signup": {
+            "post": {
+                "description": "Handles the HTTP request for user signup.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "User"
+                ],
+                "summary": "Handle user signup",
+                "parameters": [
+                    {
+                        "description": "Signup form data",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/core.UserSignupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Successful signup",
+                        "schema": {
+                            "$ref": "#/definitions/core.GetUserDataResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request or user already exists",
+                        "schema": {
+                            "$ref": "#/definitions/core.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/user/update": {
+            "post": {
+                "description": "Handles the request to update a user's email or username.",
+                "tags": [
+                    "User"
+                ],
+                "summary": "Update User",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "JWT token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "User update data",
+                        "name": "userUpdateRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/core.UserUpdateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Updated user data",
+                        "schema": {
+                            "$ref": "#/definitions/core.UserUpdateResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request, may occur if the request is invalid, or user cant update username or email for now",
+                        "schema": {
+                            "$ref": "#/definitions/core.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized, may occur if the JWT token is invalid or expired",
+                        "schema": {
+                            "$ref": "#/definitions/core.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal server error",
+                        "schema": {
+                            "$ref": "#/definitions/core.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "core.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "core.GetUserDataResponse": {
+            "type": "object",
+            "properties": {
+                "refreshToken": {
+                    "description": "Refresh token for the user.",
+                    "type": "string"
+                },
+                "sessionToken": {
+                    "description": "Session token for the user.",
+                    "type": "string"
+                },
+                "user": {
+                    "description": "User information.",
+                    "type": "object",
+                    "properties": {
+                        "banned": {
+                            "description": "Flag indicating if the user is banned.",
+                            "type": "boolean"
+                        },
+                        "createdAt": {
+                            "description": "Timestamp indicating when the user was created.",
+                            "type": "string"
+                        },
+                        "email": {
+                            "description": "Email of the user.",
+                            "type": "string"
+                        },
+                        "emailLastUpdatedAt": {
+                            "description": "Timestamp indicating when the email was last updated.",
+                            "type": "string"
+                        },
+                        "id": {
+                            "description": "User ID.",
+                            "type": "string"
+                        },
+                        "lastLoginAt": {
+                            "description": "Timestamp indicating when the user last logged in.",
+                            "type": "string"
+                        },
+                        "location": {
+                            "description": "Location information of the user.",
+                            "type": "object",
+                            "properties": {
+                                "city": {
+                                    "description": "City where the user is located.",
+                                    "type": "string"
+                                },
+                                "country": {
+                                    "description": "Country where the user is located.",
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "phoneNumber": {
+                            "description": "Phone number of the user.",
+                            "type": "string"
+                        },
+                        "reputation": {
+                            "description": "Reputation of the user.",
+                            "type": "integer"
+                        },
+                        "role": {
+                            "description": "Role of the user.",
+                            "type": "string"
+                        },
+                        "updatedAt": {
+                            "description": "Timestamp indicating when the user was last updated.",
+                            "type": "string"
+                        },
+                        "username": {
+                            "description": "Username of the user.",
+                            "type": "string"
+                        },
+                        "usernameLastUpdatedAt": {
+                            "description": "Timestamp indicating when the username was last updated.",
+                            "type": "string"
+                        },
+                        "verified": {
+                            "description": "Flag indicating if the user is verified.",
+                            "type": "boolean"
+                        }
+                    }
+                }
+            }
+        },
+        "core.UserDeleteResponse": {
+            "type": "object",
+            "properties": {
+                "success": {
+                    "description": "Success indicates if the user was deleted successfully.\nRequired: true",
+                    "type": "boolean"
+                }
+            }
+        },
+        "core.UserLoginRequest": {
+            "type": "object",
+            "required": [
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "description": "Email of the user.",
+                    "type": "string"
+                },
+                "password": {
+                    "description": "Password of the user.\n\nrequired: true",
+                    "type": "string"
+                },
+                "test": {
+                    "description": "Test flag to indicate if it's a test.",
+                    "type": "boolean"
+                },
+                "username": {
+                    "description": "Username of the user.",
+                    "type": "string"
+                }
+            }
+        },
+        "core.UserLoginResponse": {
+            "type": "object",
+            "properties": {
+                "refreshToken": {
+                    "description": "Refresh token for the user.",
+                    "type": "string"
+                },
+                "sessionToken": {
+                    "description": "Session token for the user.",
+                    "type": "string"
+                },
+                "user": {
+                    "description": "User information.",
+                    "type": "object",
+                    "properties": {
+                        "banned": {
+                            "description": "Flag indicating if the user is banned.",
+                            "type": "boolean"
+                        },
+                        "createdAt": {
+                            "description": "Timestamp indicating when the user was created.",
+                            "type": "string"
+                        },
+                        "email": {
+                            "description": "Email of the user.",
+                            "type": "string"
+                        },
+                        "emailLastUpdatedAt": {
+                            "description": "Timestamp indicating when the email was last updated.",
+                            "type": "string"
+                        },
+                        "id": {
+                            "description": "User ID.",
+                            "type": "string"
+                        },
+                        "lastLoginAt": {
+                            "description": "Timestamp indicating when the user last logged in.",
+                            "type": "string"
+                        },
+                        "location": {
+                            "description": "Location information of the user.",
+                            "type": "object",
+                            "properties": {
+                                "city": {
+                                    "description": "City where the user is located.",
+                                    "type": "string"
+                                },
+                                "country": {
+                                    "description": "Country where the user is located.",
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "phoneNumber": {
+                            "description": "Phone number of the user.",
+                            "type": "string"
+                        },
+                        "reputation": {
+                            "description": "Reputation of the user.",
+                            "type": "integer"
+                        },
+                        "role": {
+                            "description": "Role of the user.",
+                            "type": "string"
+                        },
+                        "updatedAt": {
+                            "description": "Timestamp indicating when the user was last updated.",
+                            "type": "string"
+                        },
+                        "username": {
+                            "description": "Username of the user.",
+                            "type": "string"
+                        },
+                        "usernameLastUpdatedAt": {
+                            "description": "Timestamp indicating when the username was last updated.",
+                            "type": "string"
+                        },
+                        "verified": {
+                            "description": "Flag indicating if the user is verified.",
+                            "type": "boolean"
+                        }
+                    }
+                }
+            }
+        },
+        "core.UserSignupRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "password",
+                "username"
+            ],
+            "properties": {
+                "city": {
+                    "description": "City where the user is located.",
+                    "type": "string"
+                },
+                "country": {
+                    "description": "Country where the user is located.",
+                    "type": "string"
+                },
+                "email": {
+                    "description": "Email of the user.\n\nrequired: true\nformat: email",
+                    "type": "string"
+                },
+                "password": {
+                    "description": "Password of the user.\n\nrequired: true",
+                    "type": "string"
+                },
+                "phoneNumber": {
+                    "description": "Phone number of the user.\n\nformat: e164",
+                    "type": "string"
+                },
+                "test": {
+                    "description": "Test flag to indicate if it's a test.",
+                    "type": "boolean"
+                },
+                "username": {
+                    "description": "Username of the user.\n\nrequired: true",
+                    "type": "string"
+                }
+            }
+        },
+        "core.UserUpdateRequest": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "description": "User's email.\n\nThis field is required and should be a valid email address.",
+                    "type": "string"
+                },
+                "test": {
+                    "description": "Test flag for testing purposes.",
+                    "type": "boolean"
+                },
+                "username": {
+                    "description": "User's username.\n\nThis field is required and should be a valid username.",
+                    "type": "string"
+                }
+            }
+        },
+        "core.UserUpdateResponse": {
+            "type": "object",
+            "properties": {
+                "refreshToken": {
+                    "description": "Refresh token for the user.",
+                    "type": "string"
+                },
+                "sessionToken": {
+                    "description": "Session token for the user.",
+                    "type": "string"
+                },
+                "user": {
+                    "description": "User information.",
+                    "type": "object",
+                    "properties": {
+                        "banned": {
+                            "description": "Flag indicating if the user is banned.",
+                            "type": "boolean"
+                        },
+                        "createdAt": {
+                            "description": "Timestamp indicating when the user was created.",
+                            "type": "string"
+                        },
+                        "email": {
+                            "description": "Email of the user.",
+                            "type": "string"
+                        },
+                        "emailLastUpdatedAt": {
+                            "description": "Timestamp indicating when the email was last updated.",
+                            "type": "string"
+                        },
+                        "id": {
+                            "description": "User ID.",
+                            "type": "string"
+                        },
+                        "lastLoginAt": {
+                            "description": "Timestamp indicating when the user last logged in.",
+                            "type": "string"
+                        },
+                        "location": {
+                            "description": "Location information of the user.",
+                            "type": "object",
+                            "properties": {
+                                "city": {
+                                    "description": "City where the user is located.",
+                                    "type": "string"
+                                },
+                                "country": {
+                                    "description": "Country where the user is located.",
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "phoneNumber": {
+                            "description": "Phone number of the user.",
+                            "type": "string"
+                        },
+                        "reputation": {
+                            "description": "Reputation of the user.",
+                            "type": "integer"
+                        },
+                        "role": {
+                            "description": "Role of the user.",
+                            "type": "string"
+                        },
+                        "updatedAt": {
+                            "description": "Timestamp indicating when the user was last updated.",
+                            "type": "string"
+                        },
+                        "username": {
+                            "description": "Username of the user.",
+                            "type": "string"
+                        },
+                        "usernameLastUpdatedAt": {
+                            "description": "Timestamp indicating when the username was last updated.",
+                            "type": "string"
+                        },
+                        "verified": {
+                            "description": "Flag indicating if the user is verified.",
+                            "type": "boolean"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
