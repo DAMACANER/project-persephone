@@ -15,6 +15,9 @@ docker compose up -d
 go mod tidy
 ```
 ```bash
+curl -sSfL https://raw.githubusercontent.com/cosmtrek/air/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
+```
+```bash
 $(go env GOPATH)/bin/air 
 ```
 
