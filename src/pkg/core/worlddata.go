@@ -160,6 +160,16 @@ type GetStatesResponse struct {
 	ResultCount uint16 `json:"resultCount"`
 }
 
+// GetStatesHandler godoc
+//
+//	@Summary		Get states
+//	@Description	Get states
+//	@Tags			World Data
+//	@Accept			json
+//	@Produce		json
+//	@Body			{object} GetStatesRequest
+//	@Router			/api/world/getStates [post]
+//	@Success		200	{object}	GetStatesResponse
 func GetStatesHandler(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
 	var req GetStatesRequest
@@ -294,16 +304,16 @@ type GetCountriesResponse struct {
 
 // GetCountriesHandler handles the HTTP request to get a paginated list of countries.
 //
-// @Summary Get Countries
-// @Description Returns a paginated list of countries.
-// @Tags Countries
-// @Accept json
-// @Produce json
-// @Body {object} GetCountriesRequest
-// @Success 200 {object} GetCountriesResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/world/countries [post]
+//	@Summary		Get Countries
+//	@Description	Returns a paginated list of countries.
+//	@Tags			World Data
+//	@Accept			json
+//	@Produce		json
+//	@Body			{object} GetCountriesRequest
+//	@Success		200	{object}	GetCountriesResponse
+//	@Failure		400	{object}	ErrorResponse
+//	@Failure		500	{object}	ErrorResponse
+//	@Router			/api/world/getCountries [post]
 func GetCountriesHandler(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
 	var req GetCountriesRequest

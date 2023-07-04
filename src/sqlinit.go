@@ -227,10 +227,7 @@ func CreateWorldTables() {
 	if err != nil {
 		panic(err)
 	}
-	_, err = db.Exec(context.Background(), "CREATE DATABASE IF NOT EXISTS persephone")
-	if err != nil {
-		panic(err)
-	}
+	db.Exec(context.Background(), "CREATE DATABASE persephone")
 	_, err = db.Exec(context.Background(), "CREATE SCHEMA IF NOT EXISTS public")
 	if err != nil {
 		panic(err)

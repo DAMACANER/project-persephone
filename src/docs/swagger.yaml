@@ -1,8 +1,84 @@
 definitions:
+  core.CountryInDB:
+    properties:
+      capital:
+        type: string
+      currency:
+        type: string
+      currency_name:
+        type: string
+      currency_symbol:
+        type: string
+      emoji:
+        type: string
+      emojiU:
+        type: string
+      id:
+        type: integer
+      iso2:
+        type: string
+      iso3:
+        type: string
+      latitude:
+        type: number
+      longitude:
+        type: number
+      name:
+        type: string
+      native:
+        type: string
+      numeric_code:
+        type: string
+      phonecode:
+        type: string
+      region:
+        type: string
+      subregion:
+        type: string
+      timezone_id:
+        items:
+          type: integer
+        type: array
+      tld:
+        type: string
+    type: object
   core.ErrorResponse:
     properties:
       error:
         type: string
+      request_id:
+        type: string
+    type: object
+  core.GetCountriesResponse:
+    properties:
+      countries:
+        description: Countries represents a list of countries
+        items:
+          $ref: '#/definitions/core.CountryInDB'
+        type: array
+      resultCount:
+        description: ResultCount represents Query result count
+        type: integer
+      totalCount:
+        description: TotalCount represents countries count in the database
+        type: integer
+      totalPages:
+        description: TotalPages represents total number of pages, calculated by dividing
+          TotalCount by PageSize in the GetCountriesRequest
+        type: integer
+    type: object
+  core.GetStatesResponse:
+    properties:
+      resultCount:
+        type: integer
+      states:
+        items:
+          $ref: '#/definitions/core.State'
+        type: array
+      totalCount:
+        type: integer
+      totalPages:
+        type: integer
     type: object
   core.GetUserDataResponse:
     properties:
@@ -65,6 +141,21 @@ definitions:
             description: Flag indicating if the user is verified.
             type: boolean
         type: object
+    type: object
+  core.State:
+    properties:
+      country_code:
+        type: string
+      country_id:
+        type: integer
+      id:
+        type: integer
+      latitude:
+        type: string
+      longitude:
+        type: string
+      name:
+        type: string
     type: object
   core.UserDeleteResponse:
     properties:
@@ -401,4 +492,42 @@ paths:
       summary: Update User
       tags:
       - User
+  /api/world/getCountries:
+    post:
+      consumes:
+      - application/json
+      description: Returns a paginated list of countries.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/core.GetCountriesResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/core.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/core.ErrorResponse'
+      summary: Get Countries
+      tags:
+      - World Data
+  /api/world/getStates:
+    post:
+      consumes:
+      - application/json
+      description: Get states
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/core.GetStatesResponse'
+      summary: Get states
+      tags:
+      - World Data
 swagger: "2.0"
