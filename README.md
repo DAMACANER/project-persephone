@@ -15,8 +15,10 @@ docker compose up -d
 go mod tidy
 ```
 ```bash
-$(go env GOPATH)/bin/air
+$(go env GOPATH)/bin/air 
 ```
+
+###  Notes
 
 You need Turkey's map data for CRON jobs to work, download it from here:
 
@@ -28,25 +30,20 @@ You are set to go!
 
 ### Documentation
 
-API documentation is written at Postman, hit me up and I will send an invite link to your email.
+API documentation is written at Swagger.
 
-For code documentation, run 
+Run
 
-```bash
-godoc
+```go
+go install github.com/swaggo/swag/cmd/swag@latest
+swag init
 ```
 
-if you get an error like `i couldnt find this command and i fucked up` from your shell, run
-
-```bash
-go install golang.org/x/tools/cmd/godoc@latest
+and then navigate to 
+```js
+/api/swagger/index.html
 ```
 
-and then run
-
-```bash
-godoc
-```
 
 or just read the code. As [raylib](https://www.raylib.com/) creator says:
 
