@@ -17,6 +17,10 @@ var updatedRecentlyError = func(recentlyUpdatedProperty string, updatedAt time.T
 var UUIDDoesNotExistError = func(uuidDNE string) error {
 	return fmt.Errorf("uuid %s does not exist", uuidDNE)
 }
+
+var noRowsAffectedDuringUpdateError = errors.New("no rows affected during update")
+var phoneNumberAlreadyExistsError = errors.New("phone number already exists") // Indicates that the phone number already exists in the system
+
 var emailAlreadyExistsError = errors.New("email already exists") // Indicates that the email already exists in the system
 
 var usernameAlreadyExistsError = errors.New("username already exists") // Indicates that the username already exists in the system

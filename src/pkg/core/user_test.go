@@ -29,22 +29,34 @@ const (
 	TestPhone    = "+905555555555"
 	TestPassword = "123$sagopaHaksizdi"
 	TestUsername = "canercezarapyapardostlar"
-	TestCity     = "Istanbul"
-	TestCountry  = "Turkey"
+	TestCity     = 32
+	TestCountry  = 16
+	TestState    = 1
 )
 
 func (suite *UserTestSuite) DeleteAndCreateUser() {
-	sql, args, err := suite.StmtBuilder.Delete(UserTableName).Where(squirrel.Eq{EmailDBField: TestEmail}).ToSql()
+	sql, args, err := suite.StmtBuilder.Delete(UserTableName).Where(squirrel.Eq{UserEmailDBField: TestEmail}).ToSql()
 	assert.Nil(suite.T(), err)
 	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	assert.Nil(suite.T(), err)
-	_, err = suite.DB.Exec(to, sql, args...)
+	rows, err := suite.DB.Exec(to, sql, args...)
 	assert.Nil(suite.T(), err)
-	sql, args, err = suite.StmtBuilder.Delete(UserTableName).Where(squirrel.Eq{PhoneNumberDBField: TestPhone}).ToSql()
-	assert.Nil(suite.T(), err)
-	_, err = suite.DB.Exec(to, sql, args...)
-	assert.Nil(suite.T(), err)
+	if rows.RowsAffected() == 0 {
+		sql, args, err = suite.StmtBuilder.Delete(UserTableName).Where(squirrel.Eq{UserPhoneNumberDBField: TestPhone}).ToSql()
+		assert.Nil(suite.T(), err)
+		rows, err = suite.DB.Exec(to, sql, args...)
+		assert.Nil(suite.T(), err)
+		if rows.RowsAffected() == 0 {
+			sql, args, err = suite.StmtBuilder.Delete(UserTableName).Where(squirrel.Eq{UserUsernameDBField: TestUsername}).ToSql()
+			assert.Nil(suite.T(), err)
+			rows, err = suite.DB.Exec(to, sql, args...)
+			assert.Nil(suite.T(), err)
+			if rows.RowsAffected() == 0 {
+				suite.T().Error("Could not delete user")
+			}
+		}
+	}
 	var payloadSignup UserSignupRequest
 	payloadSignup.Email = TestEmail
 	payloadSignup.Username = TestUsername
@@ -53,6 +65,7 @@ func (suite *UserTestSuite) DeleteAndCreateUser() {
 	payloadSignup.PhoneNum = TestPhone
 	payloadSignup.City = TestCity
 	payloadSignup.Country = TestCountry
+	payloadSignup.State = TestState
 	jsonPayload, err := json.Marshal(payloadSignup)
 	assert.Nil(suite.T(), err)
 	req, err := suite.Server.Client().Post(suite.Server.URL+"/api/user/signup", "application/json", strings.NewReader(string(jsonPayload)))
@@ -165,7 +178,10 @@ func (suite *UserTestSuite) TestEmailAndPasswordUpdate() {
 	payloadUpdate.Test = false
 	jsonPayload, err = json.Marshal(payloadUpdate)
 	assert.Nil(suite.T(), err)
-	req, err = suite.Server.Client().Post(suite.Server.URL+"/api/user/update", "application/json", strings.NewReader(string(jsonPayload)))
+	draftReq, err = http.NewRequest("POST", suite.Server.URL+"/api/user/update", strings.NewReader(string(jsonPayload)))
+	assert.Nil(suite.T(), err)
+	draftReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", suite.SessionToken))
+	req, err = suite.Server.Client().Do(draftReq)
 	assert.Nil(suite.T(), err)
 	assert.Equal(suite.T(), 400, req.StatusCode)
 

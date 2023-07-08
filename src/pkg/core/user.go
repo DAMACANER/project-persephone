@@ -1,16 +1,15 @@
 package core
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/Masterminds/squirrel"
 	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/joho/godotenv/autoload"
 	"golang.org/x/crypto/bcrypt"
-	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -25,9 +24,9 @@ func NewUserHandler() http.Handler {
 	var deleteTracer = AssignTracer("/delete", "USER_CRUD", "/delete")
 	// declare routers with tracers wrapped around them
 	r.With(signUpTracer).Post("/signup", UserSignupHandler)
-	r.With(loginTracer, JWTWhitelist([]string{tokenStatusWaitingLogin}, nil)).Post("/login", UserLoginHandler)
-	r.With(updateTracer, JWTWhitelist([]string{tokenStatusActive}, nil)).Post("/update", UserUpdateHandler)
-	r.With(deleteTracer, JWTWhitelist([]string{tokenStatusActive}, nil)).Delete("/delete", UserDeleteHandler)
+	r.With(loginTracer).Post("/login", UserLoginHandler)
+	r.With(updateTracer, JWTWhitelist(nil, nil)).Post("/update", UserUpdateHandler)
+	r.With(deleteTracer, JWTWhitelist(nil, nil)).Delete("/delete", UserDeleteHandler)
 
 	return r
 }
@@ -92,32 +91,6 @@ const (
 	UserPossibleSpammerDBField       = "possible_spammer"
 )
 
-var onConflictColumns = []string{
-	UserEmailDBField,
-	UserUsernameDBField,
-	UserPhoneNumberDBField,
-}
-
-// updateColumns is used when test parameter is given and we want to override an existing user.
-//
-// check onConflictColumns for the columns that are used for the conflict, if any of them is not unique, then first found user will be overwritten.
-//
-// delete any columns you want from here if you want to keep the old value.
-var updateColumns = []string{
-	UserIDDBField,
-	UserUsernameDBField,
-	UserPasswordDBField,
-	UserCreatedAtDBField,
-	UserUpdatedAtDBField,
-	UserPhoneNumberDBField,
-	UserRoleDBField,
-	UserBannedDBField,
-	UserReputationDBField,
-	UserCityDBField,
-	UserCountryDBField,
-	UserStateDBField,
-}
-
 // UserSignupRequest represents the data required for user signup.
 //
 // swagger:model UserSignupRequest
@@ -147,29 +120,33 @@ type UserSignupRequest struct {
 	PhoneNum string `json:"phoneNumber" validate:"e164"`
 
 	// City where the user is located.
-	City uint32 `json:"city"`
+	City uint32 `json:"cityId"`
 
 	// Country where the user is located.
-	Country uint8 `json:"country"`
+	Country uint8 `json:"countryID"`
 
 	// State where the user is located.
-	State uint16 `json:"state"`
+	State uint16 `json:"stateID"`
 }
 
 type UserSignupResponse GetUserDataResponse
 
 // UserSignupHandler handles the HTTP request for user signup.
 //
-//	@Summary		Handle user signup
-//	@Description	Handles the HTTP request for user signup.
-//	@Tags			User
-//	@Accept			json
-//	@Produce		json
-//	@Param			body	body		UserSignupRequest	true	"Signup form data"
-//	@Success		200		{object}	GetUserDataResponse	"Successful signup"
-//	@Failure		400		{object}	ErrorResponse		"Bad request or user already exists"
-//	@Failure		500		{object}	ErrorResponse		"Internal server error"
-//	@Router			/api/user/signup [post]
+//	@Summary					Handle user signup
+//	@Description				Handles the HTTP request for user signup.
+//	@Tags						User
+//	@Accept						json
+//	@Produce					json
+//	@securityDefinitions.apikey	ApiKeyAuth
+//	@in							header
+//	@name						Authorization
+//	@description				Bearer {JWT} | Whitelist: None.
+//	@Param						body	body		UserSignupRequest	true	"Signup form data"
+//	@Success					200		{object}	GetUserDataResponse	"Successful signup"
+//	@Failure					400		{object}	ErrorResponse		"Bad request or user already exists"
+//	@Failure					500		{object}	ErrorResponse		"Internal server error"
+//	@Router						/api/user/signup [post]
 func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
 	var signUpForm UserSignupRequest
@@ -184,35 +161,18 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// check if user exists
-		user := s.StmtBuilder.Select("*").From("users").Where(squirrel.Eq{"email": signUpForm.Email})
-		sql, args, err := user.ToSql()
+		rows, err := s.QuerySQL(s.StmtBuilder.Select("*").From("users").Where(squirrel.Eq{"email": signUpForm.Email}), false)
+		defer rows.Close()
 		if err != nil {
-			s.LogError(err, http.StatusInternalServerError)
 			return
-		}
-		to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		rows, err := s.DB.Query(to, sql, args...)
-		if err != nil {
-			s.LogError(err, http.StatusInternalServerError)
-			return
+
 		}
 		if rows.Next() {
 			s.LogError(emailAlreadyExistsError, http.StatusBadRequest)
 			return
 		} else {
-			// now do the same check for user
-			user = s.StmtBuilder.Select("*").From("users").Where(squirrel.Eq{"username": signUpForm.Username})
-			sql, args, err = user.ToSql()
+			rows, err = s.QuerySQL(s.StmtBuilder.Select("*").From("users").Where(squirrel.Eq{"username": signUpForm.Username}), false)
 			if err != nil {
-				s.LogError(err, http.StatusInternalServerError)
-				return
-			}
-			to, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			rows, err = s.DB.Query(to, sql, args...)
-			if err != nil {
-				s.LogError(err, http.StatusInternalServerError)
 				return
 			}
 			if rows.Next() {
@@ -220,18 +180,19 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			} else {
 				// do the same check for phone number
-				user = s.StmtBuilder.Select("*").From("users").Where(squirrel.Eq{"phone_number": signUpForm.PhoneNum})
-				sql, args, err = user.ToSql()
+				rows, err = s.QuerySQL(s.StmtBuilder.Select("*").From("users").Where(squirrel.Eq{"phone_number": signUpForm.PhoneNum}), false)
 				if err != nil {
-					s.LogError(err, http.StatusInternalServerError)
 					return
 				}
-				to, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
+				if rows.Next() {
+					s.LogError(phoneNumberAlreadyExistsError, http.StatusBadRequest)
+					return
+				}
 			}
 
 		}
 	}
+
 	// dont check anything if test is true
 	var userData UserDB
 	passwordHashed, err := HashPassword(signUpForm.Password)
@@ -319,41 +280,51 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 			userData.State,
 			userData.LastLoginIP,
 		)
-	sql, args, err := user.ToSql()
-	if err != nil {
-		s.LogError(err, http.StatusInternalServerError)
-		return
-	}
-	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err = s.DB.Exec(to, sql, args...)
-	if err != nil {
+	if _, err = s.ExecuteSQL(user, true); err != nil {
 		if signUpForm.Test {
-			// if test is true, add on conflict to the sql, so we can override the user.
-			onConflictClause := fmt.Sprintf("ON CONFLICT (%s) DO UPDATE SET ", onConflictColumns[0])
-
-			for i, col := range updateColumns {
-				if i > 0 {
-					onConflictClause += ", "
+			s.Logger.Error(err.Error())
+			s.Logger.Info("test mode, logged error, fallbacking to updating already existing user")
+			// override the corresponding user with the new data, keep the old values if possible or not stated in the request
+			user := s.StmtBuilder.Update("users").
+				Set(UserEmailDBField, userData.Email).
+				Set(UserUsernameDBField, userData.Username).
+				Set(UserPasswordDBField, userData.Password).
+				Set(UserPhoneNumberDBField, userData.PhoneNumber).
+				Set(UserSessionTokenDBField, userData.SessionToken).
+				Set(UserRefreshTokenDBField, userData.RefreshToken).
+				Set(UserCityDBField, userData.City).
+				Set(UserCountryDBField, userData.Country).
+				Set(UserStateDBField, userData.State).
+				Set(UserLastLoginIPDBField, userData.LastLoginIP).
+				Set(UserLastLoginAtDBField, userData.LastLoginAt).
+				Set(UserIDDBField, userData.ID)
+			userQuery := user.Where(squirrel.Eq{UserEmailDBField: userData.Email})
+			var res pgconn.CommandTag
+			res, err = s.ExecuteSQL(userQuery, false)
+			if res.RowsAffected() == 0 {
+				// try again with username if the email is not found
+				userQuery = user.Where(squirrel.Eq{UserUsernameDBField: userData.Username})
+				res, err = s.ExecuteSQL(userQuery, false)
+				if res.RowsAffected() == 0 {
+					// try again with phone number if the username is not found
+					userQuery = user.Where(squirrel.Eq{UserPhoneNumberDBField: userData.PhoneNumber})
+					res, err = s.ExecuteSQL(userQuery, false)
+					if res.RowsAffected() == 0 || err != nil {
+						s.LogError(err, http.StatusInternalServerError)
+						return
+					}
 				}
-				onConflictClause += fmt.Sprintf("%s = EXCLUDED.%s", col, col)
-			}
-
-			sql = fmt.Sprintf("%s %s", sql, onConflictClause)
-			_, err = s.DB.Exec(to, sql, args...)
-			if err != nil {
-				s.LogError(err, http.StatusInternalServerError)
-				return
+				if err != nil {
+					s.LogError(err, http.StatusInternalServerError)
+					return
+				}
 			}
 		} else {
-			s.LogError(err, http.StatusBadRequest)
+			// do not handle the executeSQL s error here, it is handled inside the function.
+			//
+			// only return from the function, as it is already handled.
 			return
 		}
-	}
-
-	if err != nil {
-		s.LogError(err, http.StatusInternalServerError)
-		return
 	}
 	r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", loginToken))
 	GetUser(r)
@@ -382,20 +353,26 @@ type UserLoginResponse GetUserDataResponse
 
 // UserLoginHandler handles the HTTP request for user login.
 //
-//	@Summary		Handle user login
-//	@Description	Handles the HTTP request for user login.
-//	@Tags			User
-//	@Accept			json
-//	@Produce		json
-//	@Param			body	body		UserLoginRequest	true	"Login form data"
-//	@Success		200		{object}	UserLoginResponse	"Successful login"
-//	@Failure		400		{object}	ErrorResponse		"Bad request or unauthorized"
-//	@Failure		500		{object}	ErrorResponse		"Internal server error"
-//	@Router			/api/user/login [post]
+//	@Summary					Handle user login
+//	@Description				Handles the HTTP request for user login.
+//	@Tags						User
+//	@Accept						json
+//	@Produce					json
+//
+//	@securityDefinitions.apikey	ApiKeyAuth
+//	@in							header
+//	@name						Authorization
+//	@description				Bearer {JWT} | Whitelist: None. Body is not required if Authorization header is set.
+//
+//	@Param						body	body		UserLoginRequest	true	"Login form data"
+//	@Success					200		{object}	UserLoginResponse	"Successful login"
+//	@Failure					400		{object}	ErrorResponse		"Bad request or unauthorized"
+//	@Failure					500		{object}	ErrorResponse		"Internal server error"
+//	@Router						/api/user/login [post]
 func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
 	var uid string
-	if r.Header.Get("Authorization") != "" || strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+	if r.Header.Get("Authorization") != "" && strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
 		jwtContents, err := s.GetJWTData()
 		if err != nil {
 			s.LogError(err, http.StatusBadRequest)
@@ -416,29 +393,30 @@ func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		sqlBuilder := s.StmtBuilder.Select(fmt.Sprintf("%s, %s", UserPasswordDBField, UserIDDBField)).From("users")
+		sqlBuilder := s.StmtBuilder.Select(UserPasswordDBField, UserIDDBField).From("users")
 		if signInForm.Email != "" {
 			sqlBuilder = sqlBuilder.Where(squirrel.Eq{UserEmailDBField: signInForm.Email})
 		} else if signInForm.Username != "" {
 			sqlBuilder = sqlBuilder.Where(squirrel.Eq{UserUsernameDBField: signInForm.Username})
 		}
-		sql, args, err := sqlBuilder.ToSql()
+		rows, err := s.QuerySQL(sqlBuilder, false)
+		defer rows.Close()
 		if err != nil {
-			s.LogError(err, http.StatusInternalServerError)
 			return
 		}
-		to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		var password string
-		err = s.DB.QueryRow(to, sql, args...).Scan(&password, &uid)
-		if err != nil {
-			s.LogError(err, http.StatusInternalServerError)
-			return
-		}
-		err = bcrypt.CompareHashAndPassword([]byte(password), []byte(signInForm.Password))
-		if err != nil {
-			s.LogError(err, http.StatusUnauthorized)
-			return
+		// print rows
+		for rows.Next() {
+			var password string
+			err = rows.Scan(&password, &uid)
+			if err != nil {
+				s.LogError(err, http.StatusUnauthorized)
+				return
+			}
+			err = bcrypt.CompareHashAndPassword([]byte(password), []byte(signInForm.Password))
+			if err != nil {
+				s.LogError(err, http.StatusUnauthorized)
+				return
+			}
 		}
 	}
 	tokenAuth := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
@@ -482,16 +460,20 @@ type UserUpdateResponse GetUserDataResponse
 
 // UserUpdateHandler handles the user update request.
 //
-//	@Summary		Update User
-//	@Description	Handles the request to update a user's email or username.
-//	@Tags			User
-//	@Param			Authorization		header		string				true	"JWT token"
-//	@Param			userUpdateRequest	body		UserUpdateRequest	true	"User update data"
-//	@Success		200					{object}	UserUpdateResponse	"Updated user data"
-//	@Failure		400					{object}	ErrorResponse		"Bad request, may occur if the request is invalid, or user cant update username or email for now"
-//	@Failure		401					{object}	ErrorResponse		"Unauthorized, may occur if the JWT token is invalid or expired"
-//	@Failure		500					{object}	ErrorResponse		"Internal server error"
-//	@Router			/api/user/update [post]
+//	@Summary					Update User
+//	@Description				Handles the request to update a user's email or username.
+//	@Tags						User
+//	@securityDefinitions.apikey	ApiKeyAuth
+//	@in							header
+//	@name						Authorization
+//	@description				Bearer {JWT} | Whitelist: Anyone that already logged in once.
+//	@Param						Authorization		header		string				true	"JWT token"
+//	@Param						userUpdateRequest	body		UserUpdateRequest	true	"User update data"
+//	@Success					200					{object}	UserUpdateResponse	"Updated user data"
+//	@Failure					400					{object}	ErrorResponse		"Bad request, may occur if the request is invalid, or user cant update username or email for now"
+//	@Failure					401					{object}	ErrorResponse		"Unauthorized, may occur if the JWT token is invalid or expired"
+//	@Failure					500					{object}	ErrorResponse		"Internal server error"
+//	@Router						/api/user/update [post]
 func UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
 	jwtContents, err := s.GetJWTData()
@@ -499,13 +481,7 @@ func UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		s.LogError(err, http.StatusBadRequest)
 	}
 	var req UserUpdateRequest
-	bodyData, err := io.ReadAll(r.Body)
-	if err != nil {
-		s.LogError(err, http.StatusBadRequest)
-		return
-	}
-	err = json.Unmarshal(bodyData, &req)
-	if err != nil {
+	if err := s.Bind(&req); err != nil {
 		s.LogError(err, http.StatusBadRequest)
 		return
 	}
@@ -517,28 +493,21 @@ func UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	var user UserUpdateDBFields
-	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 	userQuery := s.StmtBuilder.
 		Select(fmt.Sprintf("%s, %s, %s, %s, %s",
 			UserEmailLastUpdatedAtDBField,
 			UserUsernameLastUpdatedAtDBField,
-			UserEmailDBField, UserUsernameDBField,
+			UserEmailDBField,
+			UserUsernameDBField,
 			UserSessionTokenDBField)).
 		From("users").
 		Where(squirrel.Eq{UserIDDBField: jwtContents.UUID})
-	sql, args, err := userQuery.ToSql()
+	rows, err := s.QuerySQL(userQuery, false)
+	defer rows.Close()
 	if err != nil {
-		s.LogError(err, http.StatusInternalServerError)
 		return
 	}
-	defer cancel()
-	err = s.DB.QueryRow(to, sql, args...).Scan(&user.EmailLastUpdatedAt, &user.UsernameLastUpdatedAt, &user.Email, &user.Username, &user.SessionToken)
-	if err != nil {
-		s.LogError(err, http.StatusInternalServerError)
-		return
-	}
-
+	err = rows.Scan(&user.EmailLastUpdatedAt, &user.UsernameLastUpdatedAt, &user.Email, &user.Username, &user.SessionToken)
 	if req.Email != "" {
 		if !req.Test {
 			if req.Email == user.Email {
@@ -573,14 +542,7 @@ func UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		UserEmailLastUpdatedAtDBField:    user.EmailLastUpdatedAt,
 		UserUsernameLastUpdatedAtDBField: user.UsernameLastUpdatedAt,
 	}).Where(squirrel.Eq{UserIDDBField: jwtContents.UUID})
-	sql, args, err = updateQuery.ToSql()
-	if err != nil {
-		s.LogError(err, http.StatusInternalServerError)
-		return
-	}
-	_, err = s.DB.Exec(to, sql, args...)
-	if err != nil {
-		s.LogError(err, http.StatusInternalServerError)
+	if _, err := s.ExecuteSQL(updateQuery, false); err != nil {
 		return
 	}
 	GetUser(r)
@@ -678,18 +640,13 @@ func GetUser(r *http.Request) {
 				UserLastLoginAtDBField)).
 		From(UserTableName).
 		Where(squirrel.Eq{UserIDDBField: jwtContents.UUID})
-	sql, args, err := userFindQuery.ToSql()
+	user, err := s.QuerySQL(userFindQuery, false)
+	defer user.Close()
 	if err != nil {
 		s.LogError(err, http.StatusInternalServerError)
 		return
 	}
-	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	user, err := s.DB.Query(to, sql, args...)
-	if err != nil {
-		s.LogError(err, http.StatusInternalServerError)
-		return
-	}
+
 	var response GetUserDataResponse
 	if user.Next() {
 		err = user.Scan(
@@ -725,16 +682,11 @@ func GetUser(r *http.Request) {
 		Join(fmt.Sprintf("%s on %s.%s = %s.%s", CityTable, CityTable, CityIDDBField, UserTableName, UserCityDBField)).
 		Join(fmt.Sprintf("%s on %s.%s = %s.%s", CountryTable, CountryTable, CountryIDDBField, UserTableName, UserCountryDBField)).
 		Where(squirrel.Eq{fmt.Sprintf("%s.%s", UserTableName, UserIDDBField): jwtContents.UUID})
-	sql, args, err = locationQuery.ToSql()
+	location, err := s.QuerySQL(locationQuery, false)
 	if err != nil {
-		s.LogError(err, http.StatusInternalServerError)
 		return
 	}
-	location, err := s.DB.Query(to, sql, args...)
-	if err != nil {
-		s.LogError(err, http.StatusInternalServerError)
-		return
-	}
+	defer location.Close()
 	if location.Next() {
 		err = location.Scan(&response.User.Location.State, &response.User.Location.City, &response.User.Location.Country)
 		if err != nil {
@@ -762,14 +714,17 @@ type UserDeleteResponse struct {
 //
 // This endpoint deletes the user associated with the provided JWT token.
 //
-//	@Summary		Delete User
-//	@Description	Deletes a user based on the provided JWT token.
-//	@Tags			User
-//	@Param			Authorization	header		string				true	"JWT token"
-//	@Success		200				{object}	UserDeleteResponse	"User successfully deleted."
-//	@Failure		400				{object}	ErrorResponse		"Bad request, may occur if the JWT token is invalid or expired"
-//	@Failure		500				{object}	ErrorResponse		"Internal server error"
-//	@Router			/api/user/delete [delete]
+//	@Summary					Delete User
+//	@Description				Deletes a user based on the provided JWT token.
+//	@Tags						User
+//	@securityDefinitions.apikey	ApiKeyAuth
+//	@in							header
+//	@name						Authorization
+//	@description				Bearer {JWT} | Whitelist: Anyone that already logged in once.
+//	@Success					200	{object}	UserDeleteResponse	"User successfully deleted."
+//	@Failure					400	{object}	ErrorResponse		"Bad request, may occur if the JWT token is invalid or expired"
+//	@Failure					500	{object}	ErrorResponse		"Internal server error"
+//	@Router						/api/user/delete [delete]
 func UserDeleteHandler(w http.ResponseWriter, r *http.Request) {
 	s := r.Context().Value(ServerKeyString).(*Server)
 	jwtContents, err := s.GetJWTData()
@@ -778,20 +733,10 @@ func UserDeleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	deleteQuery := s.StmtBuilder.Delete(UserTableName).Where(squirrel.Eq{UserIDDBField: jwtContents.UUID})
-	sql, args, err := deleteQuery.ToSql()
-	if err != nil {
-		s.LogError(err, http.StatusInternalServerError)
+	if _, err = s.ExecuteSQL(deleteQuery, false); err != nil {
 		return
 	}
-	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err = s.DB.Exec(to, sql, args...)
-	if err != nil {
-		s.LogError(err, http.StatusInternalServerError)
-		return
-	}
-	err = s.WriteResponse(UserDeleteResponse{Success: true}, http.StatusOK)
-	if err != nil {
+	if err = s.WriteResponse(UserDeleteResponse{Success: true}, http.StatusOK); err != nil {
 		s.LogError(err, http.StatusInternalServerError)
 		return
 	}

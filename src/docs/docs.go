@@ -18,20 +18,11 @@ const docTemplate = `{
     "paths": {
         "/api/user/delete": {
             "delete": {
-                "description": "Deletes a user based on the provided JWT token.",
+                "description": "Deletes a user based on the provided JWT token.\nBearer {JWT} | Whitelist: Anyone that already logged in once.",
                 "tags": [
                     "User"
                 ],
                 "summary": "Delete User",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "JWT token",
-                        "name": "Authorization",
-                        "in": "header",
-                        "required": true
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "User successfully deleted.",
@@ -56,7 +47,7 @@ const docTemplate = `{
         },
         "/api/user/login": {
             "post": {
-                "description": "Handles the HTTP request for user login.",
+                "description": "Handles the HTTP request for user login.\nBearer {JWT} | Whitelist: None. Body is not required if Authorization header is set.",
                 "consumes": [
                     "application/json"
                 ],
@@ -102,7 +93,7 @@ const docTemplate = `{
         },
         "/api/user/signup": {
             "post": {
-                "description": "Handles the HTTP request for user signup.",
+                "description": "Handles the HTTP request for user signup.\nBearer {JWT} | Whitelist: None.",
                 "consumes": [
                     "application/json"
                 ],
@@ -148,7 +139,7 @@ const docTemplate = `{
         },
         "/api/user/update": {
             "post": {
-                "description": "Handles the request to update a user's email or username.",
+                "description": "Handles the request to update a user's email or username.\nBearer {JWT} | Whitelist: Anyone that already logged in once.",
                 "tags": [
                     "User"
                 ],
@@ -429,6 +420,10 @@ const docTemplate = `{
                                 "country": {
                                     "description": "Country where the user is located.",
                                     "type": "string"
+                                },
+                                "state": {
+                                    "description": "State where the user is located.",
+                                    "type": "string"
                                 }
                             }
                         },
@@ -570,6 +565,10 @@ const docTemplate = `{
                                 "country": {
                                     "description": "Country where the user is located.",
                                     "type": "string"
+                                },
+                                "state": {
+                                    "description": "State where the user is located.",
+                                    "type": "string"
                                 }
                             }
                         },
@@ -613,13 +612,13 @@ const docTemplate = `{
                 "username"
             ],
             "properties": {
-                "city": {
+                "cityId": {
                     "description": "City where the user is located.",
-                    "type": "string"
+                    "type": "integer"
                 },
-                "country": {
+                "countryID": {
                     "description": "Country where the user is located.",
-                    "type": "string"
+                    "type": "integer"
                 },
                 "email": {
                     "description": "Email of the user.\n\nrequired: true\nformat: email",
@@ -632,6 +631,10 @@ const docTemplate = `{
                 "phoneNumber": {
                     "description": "Phone number of the user.\n\nformat: e164",
                     "type": "string"
+                },
+                "stateID": {
+                    "description": "State where the user is located.",
+                    "type": "integer"
                 },
                 "test": {
                     "description": "Test flag to indicate if it's a test.",
@@ -709,6 +712,10 @@ const docTemplate = `{
                                 },
                                 "country": {
                                     "description": "Country where the user is located.",
+                                    "type": "string"
+                                },
+                                "state": {
+                                    "description": "State where the user is located.",
                                     "type": "string"
                                 }
                             }

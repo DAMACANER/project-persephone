@@ -98,7 +98,7 @@ ALTER TABLE places_reports
 
 CREATE TABLE IF NOT EXISTS "users"
 (
-    "id"                       UUID PRIMARY KEY                  DEFAULT uuid_generate_v4(),
+    "id"                       UUID PRIMARY KEY UNIQUE                 DEFAULT uuid_generate_v4(),
     "email"                    VARCHAR(255) UNIQUE      NOT NULL,
     "email_last_updated_at"    TIMESTAMP WITH TIME ZONE          DEFAULT NOW() NOT NULL,
     "username"                 VARCHAR(24) UNIQUE       NOT NULL,
@@ -119,8 +119,11 @@ CREATE TABLE IF NOT EXISTS "users"
     "state"                    SMALLSERIAL              NOT NULL,
     "last_login_ip"            inet,
     "last_login_at"            TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    "possible_spammer"         BOOLEAN                  NOT NULL DEFAULT false
+    "possible_spammer"         BOOLEAN                  NOT NULL DEFAULT false,
+    unique (email, username, phone_number)
 );
+ALTER TABLE "users"
+    ADD FOREIGN KEY ("place_id") REFERENCES "places" ("id");
 
 CREATE TABLE IF NOT EXISTS "user_reports"
 (

@@ -202,3 +202,7 @@ const (
 	CityUpdatedAtDBField   = "updated_at"
 	CityWikiDataIDDBField  = "wiki_data_id"
 )
+
+type StmtBuilders interface {
+	ToSql() (string, []interface{}, error)
+}
