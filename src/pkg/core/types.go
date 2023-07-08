@@ -136,3 +136,69 @@ const (
 	AllowedUserEmailUpdateInterval = time.Hour * 24 * 7
 	AllowedUsernameUpdateInterval  = time.Hour * 24 * 90
 )
+
+const (
+	CountryTable                 = "countries"
+	CountryIDDBField             = "id"
+	CountryNameDBField           = "name"
+	CountryISO3DBField           = "iso3"
+	CountryISO2DBField           = "iso2"
+	CountryPhoneCodeDBField      = "phonecode"
+	CountryCapitalDBField        = "capital"
+	CountryCurrencyDBField       = "currency"
+	CountryCurrencyNameDBField   = "currency_name"
+	CountryCurrencySymbolDBField = "currency_symbol"
+	CountryTLDDField             = "tld"
+	CountryNativeDBField         = "native"
+	CountryRegionDBField         = "region"
+	CountrySubregionDBField      = "subregion"
+	CountryLatitudeDBField       = "latitude"
+	CountryLongitudeDBField      = "longitude"
+	CountryEmojiDBField          = "emoji"
+	CountryEmojiUDBField         = "emojiU"
+	CountryCreatedAtDBField      = "created_at"
+	CountryUpdatedAtDBField      = "updated_at"
+	CountryTranslationsDBField   = "translations"
+	CountryTimezoneIDDBField     = "timezone_id"
+	CountryNumericCodeDBField    = "numeric_code"
+)
+
+const (
+	StateTable              = "states"
+	StateIDDBField          = "id"
+	StateNameDBField        = "name"
+	StateCountryIDDBField   = "country_id"
+	StateCountryCodeDBField = "country_code"
+	StateTypeDBField        = "type"
+	StateLatitudeDBField    = "latitude"
+	StateLongitudeDBField   = "longitude"
+	StateCreatedAtDBField   = "created_at"
+	StateUpdatedAtDBField   = "updated_at"
+	StateFlagDBField        = "flag"
+	StateWikiDataIDDBField  = "wiki_data_id"
+)
+
+const (
+	TimezoneTableName            = "timezones"
+	TimezoneIDDBField            = "id"
+	TimezoneZoneNameDBField      = "zone_name"
+	TimezoneGmtOffsetDBField     = "gmt_offset"
+	TimezoneGmtOffsetNameDBField = "gmt_offset_name"
+	TimezoneAbbreviationDBField  = "abbreviation"
+	TimezoneTzNameDBField        = "tz_name"
+)
+
+const (
+	CityTable              = "cities"
+	CityIDDBField          = "id"
+	CityNameDBField        = "name"
+	CityStateIDDBField     = "state_id"
+	CityStateCodeDBField   = "state_code"
+	CityCountryIDDBField   = "country_id"
+	CityCountryCodeDBField = "country_code"
+	CityLatitudeDBField    = "latitude"
+	CityLongitudeDBField   = "longitude"
+	CityCreatedAtDBField   = "created_at"
+	CityUpdatedAtDBField   = "updated_at"
+	CityWikiDataIDDBField  = "wiki_data_id"
+)

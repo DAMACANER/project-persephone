@@ -57,7 +57,9 @@ type UserDB struct {
 	Reputation            int16      `db:"reputation"`
 	SessionToken          string     `db:"session_token"`
 	RefreshToken          string     `db:"refresh_token"`
-	Location              *uuid.UUID `db:"location"`
+	City                  uint32     `db:"city"`
+	Country               uint8      `db:"country"`
+	State                 uint16     `db:"state"`
 	Verified              bool       `db:"verified"`
 	LastLoginIP           net.IP     `db:"last_login_ip"`
 	LastLoginAt           time.Time  `db:"last_login_at"`
@@ -65,45 +67,55 @@ type UserDB struct {
 }
 
 const (
-	UserTableName                = "users"
-	IDDBField                    = "id"
-	EmailDBField                 = "email"
-	UsernameDBField              = "username"
-	PasswordDBField              = "password"
-	CreatedAtDBField             = "created_at"
-	UpdatedAtDBField             = "updated_at"
-	PhoneNumberDBField           = "phone_number"
-	RoleDBField                  = "role"
-	PlaceIDDBField               = "place_id"
-	BannedDBField                = "banned"
-	ReputationDBField            = "reputation"
-	SessionTokenDBField          = "session_token"
-	RefreshTokenDBField          = "refresh_token"
-	LocationDBField              = "location"
-	LastLoginIPDBField           = "last_login_ip"
-	PossibleSpammerDBField       = "possible_spammer"
-	VerifiedDBField              = "verified"
-	LastLoginAtDBField           = "last_login_at"
-	EmailLastUpdatedAtDBField    = "email_last_updated_at"
-	UsernameLastUpdatedAtDBField = "username_last_updated_at"
+	UserTableName                    = "users"
+	UserIDDBField                    = "id"
+	UserEmailDBField                 = "email"
+	UserEmailLastUpdatedAtDBField    = "email_last_updated_at"
+	UserUsernameDBField              = "username"
+	UserUsernameLastUpdatedAtDBField = "username_last_updated_at"
+	UserPasswordDBField              = "password"
+	UserCreatedAtDBField             = "created_at"
+	UserUpdatedAtDBField             = "updated_at"
+	UserPhoneNumberDBField           = "phone_number"
+	UserRoleDBField                  = "role"
+	UserPlaceIDDBField               = "place_id"
+	UserBannedDBField                = "banned"
+	UserReputationDBField            = "reputation"
+	UserSessionTokenDBField          = "session_token"
+	UserRefreshTokenDBField          = "refresh_token"
+	UserCityDBField                  = "city"
+	UserCountryDBField               = "country"
+	UserStateDBField                 = "state"
+	UserVerifiedDBField              = "verified"
+	UserLastLoginIPDBField           = "last_login_ip"
+	UserLastLoginAtDBField           = "last_login_at"
+	UserPossibleSpammerDBField       = "possible_spammer"
 )
 
 var onConflictColumns = []string{
-	EmailDBField,
-	UsernameDBField,
-	PhoneNumberDBField,
+	UserEmailDBField,
+	UserUsernameDBField,
+	UserPhoneNumberDBField,
 }
 
+// updateColumns is used when test parameter is given and we want to override an existing user.
+//
+// check onConflictColumns for the columns that are used for the conflict, if any of them is not unique, then first found user will be overwritten.
+//
+// delete any columns you want from here if you want to keep the old value.
 var updateColumns = []string{
-	IDDBField,
-	UsernameDBField,
-	PasswordDBField,
-	CreatedAtDBField,
-	UpdatedAtDBField,
-	PhoneNumberDBField,
-	RoleDBField,
-	BannedDBField,
-	ReputationDBField,
+	UserIDDBField,
+	UserUsernameDBField,
+	UserPasswordDBField,
+	UserCreatedAtDBField,
+	UserUpdatedAtDBField,
+	UserPhoneNumberDBField,
+	UserRoleDBField,
+	UserBannedDBField,
+	UserReputationDBField,
+	UserCityDBField,
+	UserCountryDBField,
+	UserStateDBField,
 }
 
 // UserSignupRequest represents the data required for user signup.
@@ -135,10 +147,13 @@ type UserSignupRequest struct {
 	PhoneNum string `json:"phoneNumber" validate:"e164"`
 
 	// City where the user is located.
-	City string `json:"city"`
+	City uint32 `json:"city"`
 
 	// Country where the user is located.
-	Country string `json:"country"`
+	Country uint8 `json:"country"`
+
+	// State where the user is located.
+	State uint16 `json:"state"`
 }
 
 type UserSignupResponse GetUserDataResponse
@@ -162,7 +177,6 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 		s.LogError(err, http.StatusBadRequest)
 		return
 	}
-	fmt.Printf("signUpForm: %+v\n", signUpForm)
 	if !signUpForm.Test {
 		err := s.Validator.Struct(signUpForm)
 		if err != nil {
@@ -231,7 +245,10 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 	userData.PhoneNumber = signUpForm.PhoneNum
 	userData.Banned = false
 	userData.Role = "user"
-	userData.ID, err = s.GetUniqueUUID(UserTableName, IDDBField)
+	userData.City = signUpForm.City
+	userData.Country = signUpForm.Country
+	userData.State = signUpForm.State
+	userData.ID, err = s.GetUniqueUUID(UserTableName, UserIDDBField)
 	if err != nil {
 		s.LogError(err, http.StatusInternalServerError)
 		return
@@ -274,17 +291,19 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 	// insert the user
 	user := s.StmtBuilder.Insert("users").
 		Columns(
-			IDDBField,
-			EmailDBField,
-			UsernameDBField,
-			PasswordDBField,
-			PhoneNumberDBField,
-			RoleDBField,
-			BannedDBField,
-			SessionTokenDBField,
-			RefreshTokenDBField,
-			LocationDBField,
-			LastLoginIPDBField).
+			UserIDDBField,
+			UserEmailDBField,
+			UserUsernameDBField,
+			UserPasswordDBField,
+			UserPhoneNumberDBField,
+			UserRoleDBField,
+			UserBannedDBField,
+			UserSessionTokenDBField,
+			UserRefreshTokenDBField,
+			UserCityDBField,
+			UserCountryDBField,
+			UserStateDBField,
+			UserLastLoginIPDBField).
 		Values(
 			userData.ID,
 			userData.Email,
@@ -295,7 +314,9 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 			userData.Banned,
 			userData.SessionToken,
 			userData.RefreshToken,
-			userData.Location,
+			userData.City,
+			userData.Country,
+			userData.State,
 			userData.LastLoginIP,
 		)
 	sql, args, err := user.ToSql()
@@ -395,11 +416,11 @@ func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		sqlBuilder := s.StmtBuilder.Select(fmt.Sprintf("%s, %s", PasswordDBField, IDDBField)).From("users")
+		sqlBuilder := s.StmtBuilder.Select(fmt.Sprintf("%s, %s", UserPasswordDBField, UserIDDBField)).From("users")
 		if signInForm.Email != "" {
-			sqlBuilder = sqlBuilder.Where(squirrel.Eq{EmailDBField: signInForm.Email})
+			sqlBuilder = sqlBuilder.Where(squirrel.Eq{UserEmailDBField: signInForm.Email})
 		} else if signInForm.Username != "" {
-			sqlBuilder = sqlBuilder.Where(squirrel.Eq{UsernameDBField: signInForm.Username})
+			sqlBuilder = sqlBuilder.Where(squirrel.Eq{UserUsernameDBField: signInForm.Username})
 		}
 		sql, args, err := sqlBuilder.ToSql()
 		if err != nil {
@@ -498,7 +519,14 @@ func UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	var user UserUpdateDBFields
 	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	userQuery := s.StmtBuilder.Select(fmt.Sprintf("%s, %s, %s, %s, %s", EmailLastUpdatedAtDBField, UsernameLastUpdatedAtDBField, EmailDBField, UsernameDBField, SessionTokenDBField)).From("users").Where(squirrel.Eq{IDDBField: jwtContents.UUID})
+	userQuery := s.StmtBuilder.
+		Select(fmt.Sprintf("%s, %s, %s, %s, %s",
+			UserEmailLastUpdatedAtDBField,
+			UserUsernameLastUpdatedAtDBField,
+			UserEmailDBField, UserUsernameDBField,
+			UserSessionTokenDBField)).
+		From("users").
+		Where(squirrel.Eq{UserIDDBField: jwtContents.UUID})
 	sql, args, err := userQuery.ToSql()
 	if err != nil {
 		s.LogError(err, http.StatusInternalServerError)
@@ -540,11 +568,11 @@ func UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		user.UsernameLastUpdatedAt = time.Now()
 	}
 	updateQuery := s.StmtBuilder.Update("users").SetMap(map[string]interface{}{
-		EmailDBField:                 user.Email,
-		UsernameDBField:              user.Username,
-		EmailLastUpdatedAtDBField:    user.EmailLastUpdatedAt,
-		UsernameLastUpdatedAtDBField: user.UsernameLastUpdatedAt,
-	}).Where(squirrel.Eq{IDDBField: jwtContents.UUID})
+		UserEmailDBField:                 user.Email,
+		UserUsernameDBField:              user.Username,
+		UserEmailLastUpdatedAtDBField:    user.EmailLastUpdatedAt,
+		UserUsernameLastUpdatedAtDBField: user.UsernameLastUpdatedAt,
+	}).Where(squirrel.Eq{UserIDDBField: jwtContents.UUID})
 	sql, args, err = updateQuery.ToSql()
 	if err != nil {
 		s.LogError(err, http.StatusInternalServerError)
@@ -599,6 +627,9 @@ type GetUserDataResponse struct {
 
 			// Country where the user is located.
 			Country string `json:"country"`
+
+			// State where the user is located.
+			State string `json:"state"`
 		} `json:"location"`
 
 		// Flag indicating if the user is verified.
@@ -631,22 +662,22 @@ func GetUser(r *http.Request) {
 	userFindQuery := s.StmtBuilder.
 		Select(
 			fmt.Sprintf("%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s",
-				IDDBField,
-				EmailDBField,
-				UsernameDBField,
-				CreatedAtDBField,
-				UpdatedAtDBField,
-				PhoneNumberDBField,
-				RoleDBField,
-				BannedDBField,
-				ReputationDBField,
-				RefreshTokenDBField,
-				VerifiedDBField,
-				EmailLastUpdatedAtDBField,
-				UsernameLastUpdatedAtDBField,
-				LastLoginAtDBField)).
+				UserIDDBField,
+				UserEmailDBField,
+				UserUsernameDBField,
+				UserCreatedAtDBField,
+				UserUpdatedAtDBField,
+				UserPhoneNumberDBField,
+				UserRoleDBField,
+				UserBannedDBField,
+				UserReputationDBField,
+				UserRefreshTokenDBField,
+				UserVerifiedDBField,
+				UserEmailLastUpdatedAtDBField,
+				UserUsernameLastUpdatedAtDBField,
+				UserLastLoginAtDBField)).
 		From(UserTableName).
-		Where(squirrel.Eq{IDDBField: jwtContents.UUID})
+		Where(squirrel.Eq{UserIDDBField: jwtContents.UUID})
 	sql, args, err := userFindQuery.ToSql()
 	if err != nil {
 		s.LogError(err, http.StatusInternalServerError)
@@ -685,6 +716,32 @@ func GetUser(r *http.Request) {
 		return
 	}
 	response.SessionToken = strings.Replace(r.Header.Get("Authorization"), "Bearer ", "", -1)
+	locationQuery := s.StmtBuilder.
+		Select(fmt.Sprintf("%s.%s", StateTable, StateNameDBField),
+			fmt.Sprintf("%s.%s", CityTable, CityNameDBField),
+			fmt.Sprintf("%s.%s", CountryTable, CountryNameDBField)).
+		From(UserTableName).
+		Join(fmt.Sprintf("%s on %s.%s = %s.%s", StateTable, StateTable, StateIDDBField, UserTableName, UserStateDBField)).
+		Join(fmt.Sprintf("%s on %s.%s = %s.%s", CityTable, CityTable, CityIDDBField, UserTableName, UserCityDBField)).
+		Join(fmt.Sprintf("%s on %s.%s = %s.%s", CountryTable, CountryTable, CountryIDDBField, UserTableName, UserCountryDBField)).
+		Where(squirrel.Eq{fmt.Sprintf("%s.%s", UserTableName, UserIDDBField): jwtContents.UUID})
+	sql, args, err = locationQuery.ToSql()
+	if err != nil {
+		s.LogError(err, http.StatusInternalServerError)
+		return
+	}
+	location, err := s.DB.Query(to, sql, args...)
+	if err != nil {
+		s.LogError(err, http.StatusInternalServerError)
+		return
+	}
+	if location.Next() {
+		err = location.Scan(&response.User.Location.State, &response.User.Location.City, &response.User.Location.Country)
+		if err != nil {
+			s.LogError(err, http.StatusInternalServerError)
+			return
+		}
+	}
 	if s.WriteResponse(response, http.StatusOK) != nil {
 		s.LogError(err, http.StatusInternalServerError)
 		return
@@ -720,7 +777,7 @@ func UserDeleteHandler(w http.ResponseWriter, r *http.Request) {
 		s.LogError(err, http.StatusBadRequest)
 		return
 	}
-	deleteQuery := s.StmtBuilder.Delete(UserTableName).Where(squirrel.Eq{IDDBField: jwtContents.UUID})
+	deleteQuery := s.StmtBuilder.Delete(UserTableName).Where(squirrel.Eq{UserIDDBField: jwtContents.UUID})
 	sql, args, err := deleteQuery.ToSql()
 	if err != nil {
 		s.LogError(err, http.StatusInternalServerError)

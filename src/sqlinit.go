@@ -37,7 +37,6 @@ type StateInDB struct {
 	Flag        bool      `json:"flag" db:"flag"`
 	WikiDataID  string    `json:"wikiDataId" db:"wiki_data_id"`
 }
-
 type StatesInDB []StateInDB
 
 type CountryTimezone struct {
@@ -344,6 +343,21 @@ func CreateWorldTables(statesJSONFileName string, countriesJSONFileName string, 
 		panic(err)
 	}
 	if err = DropAndInsertCities(cityDataFixed, db); err != nil {
+		panic(err)
+	}
+	sqlQ := `ALTER TABLE "users"
+    ADD FOREIGN KEY ("place_id") REFERENCES "places" ("id");
+ALTER TABLE "users"
+    ADD FOREIGN KEY ("city") REFERENCES "cities" ("id");
+ALTER TABLE "users"
+    ADD FOREIGN KEY ("country") REFERENCES "countries" ("id");
+ALTER TABLE "users"
+    ADD FOREIGN KEY ("state") REFERENCES "states" ("id");`
+	to, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	_, err = db.Exec(to, sqlQ)
+	if err != nil {
 		panic(err)
 	}
 }
