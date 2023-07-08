@@ -8,17 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/Masterminds/squirrel"
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/qedus/osmpbf"
-	httpSwagger "github.com/swaggo/http-swagger"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/crypto/bcrypt"
@@ -291,51 +287,6 @@ func GetPgPool() (*pgxpool.Pool, error) {
 	}
 	conn.Release()
 	return db, nil
-}
-func ReturnHandler() http.Handler {
-	router := chi.NewRouter()
-	//
-	// PRE-SET MIDDLEWARES
-	//
-	router.Use(middleware.RequestID)
-	router.Use(middleware.RealIP)
-	router.Use(middleware.Logger)
-	router.Use(middleware.Recoverer)
-	router.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"https://*", "http://*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: false,
-		MaxAge:           300, // Maximum value not ignored by any of major browsers
-	}))
-	// please do not fiddle with middleware order.
-	router.Use(AssignServer)
-	router.Use(AssignWriter)
-	router.Use(AssignRequest)
-	router.Use(AssignLogger())
-	router.Use(AssignValidator)
-	router.Use(AssignQueryBuilder)
-
-	//
-	// POSTGRES CONNECTION POOL INITIALIZATION
-	//
-	db, err := GetPgPool()
-	if err != nil {
-		panic(err)
-	}
-	router.Use(AssignDB(db))
-	// MOUNT YOUR ROUTERS HERE.
-	router.Route("/api", func(r chi.Router) {
-		r.Mount("/user", NewUserHandler())
-		r.Mount("/world", NewCityHandler())
-		r.Get("/swagger/*", httpSwagger.Handler(
-			httpSwagger.URL("http://localhost:3000/api/swagger/doc.json"),
-		))
-	})
-	return otelhttp.NewHandler(router, "server", otelhttp.WithSpanNameFormatter(func(operation string, r *http.Request) string {
-		return operation + " " + r.URL.Path
-	}))
 }
 
 type Restaurant struct {
