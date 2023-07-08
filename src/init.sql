@@ -4,17 +4,70 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 SET TIME ZONE 'UTC';
 
-CREATE TABLE IF NOT EXISTS "countries"
-(
-    "id"   SMALLSERIAL PRIMARY KEY,
-    "name" varchar(56) NOT NULL
+DROP TABLE IF EXISTS countries CASCADE;
+CREATE TABLE countries (
+                           id             SMALLSERIAL PRIMARY KEY,
+                           name           VARCHAR(255) NOT NULL,
+                           iso3           VARCHAR(3),
+                           numeric_code   VARCHAR(3),
+                           iso2           VARCHAR(2),
+                           phonecode      VARCHAR(255),
+                           capital        VARCHAR(255),
+                           currency       VARCHAR(255),
+                           currency_name  VARCHAR(42),
+                           currency_symbol VARCHAR(255),
+                           tld            VARCHAR(255),
+                           native         VARCHAR(255),
+                           region         VARCHAR(12),
+                           subregion      VARCHAR(255),
+                           timezone_id    INTEGER[],
+                           translations   JSONB,
+                           latitude       DOUBLE PRECISION,
+                           longitude      DOUBLE PRECISION,
+                           emoji          VARCHAR(191),
+                           emojiU         VARCHAR(191),
+                           created_at     TIMESTAMPTZ DEFAULT current_timestamp,
+                           updated_at     TIMESTAMPTZ DEFAULT current_timestamp
 );
 
-CREATE TABLE IF NOT EXISTS "cities"
-(
-    "id"        SMALLSERIAL PRIMARY KEY,
-    "name"      varchar(85) NOT NULL,
-    "districts" json
+DROP TABLE IF EXISTS timezones CASCADE;
+CREATE TABLE timezones (
+                           id              SMALLSERIAL PRIMARY KEY,
+                           zone_name       VARCHAR(30) NOT NULL,
+                           gmt_offset      INTEGER NOT NULL,
+                           gmt_offset_name VARCHAR(9) NOT NULL,
+                           abbreviation    VARCHAR(5) NOT NULL,
+                           tz_name         VARCHAR(53) NOT NULL
+);
+
+DROP TABLE IF EXISTS states CASCADE;
+CREATE TABLE states (
+                        id            SMALLSERIAL PRIMARY KEY NOT NULL,
+                        name          VARCHAR(255) NOT NULL,
+                        country_id    INTEGER NOT NULL,
+                        country_code  CHAR(2) NOT NULL,
+                        type          VARCHAR(191),
+                        latitude      DECIMAL(10, 8),
+                        longitude     DECIMAL(11, 8),
+                        created_at    TIMESTAMPTZ DEFAULT NULL,
+                        updated_at    TIMESTAMPTZ DEFAULT current_timestamp,
+                        FOREIGN KEY (country_id) REFERENCES countries (id)
+);
+DROP TABLE IF EXISTS cities CASCADE;
+CREATE TABLE cities (
+                        id            SERIAL PRIMARY KEY,
+                        name          VARCHAR(86) NOT NULL,
+                        state_id      SMALLINT NOT NULL,
+                        state_code    VARCHAR(255) NOT NULL,
+                        country_id    SMALLINT NOT NULL,
+                        country_code  CHAR(2) NOT NULL,
+                        latitude      DECIMAL(10, 8) NOT NULL,
+                        longitude     DECIMAL(11, 8) NOT NULL,
+                        created_at    TIMESTAMPTZ DEFAULT '2014-01-01 06:31:01',
+                        updated_at    TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+                        wiki_data_id    VARCHAR(255) DEFAULT NULL,
+                        CONSTRAINT fk_cities_state FOREIGN KEY (state_id) REFERENCES states (id),
+                        CONSTRAINT fk_cities_country FOREIGN KEY (country_id) REFERENCES countries (id)
 );
 
 CREATE TABLE IF NOT EXISTS "country_city_state_map"

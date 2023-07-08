@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"os"
 	"strconv"
 	"time"
@@ -211,9 +212,8 @@ type CitiesToUnmarshal []struct {
 	WikiDataID  string `json:"wikiDataId"`
 }
 
-func CreateWorldTables() {
-	jsonFileName := "cities.json"
-	jsonFileData, err := os.ReadFile(jsonFileName)
+func CreateWorldTables(statesJSONFileName string, countriesJSONFileName string, citiesJSONFileName string, db *pgxpool.Pool) {
+	jsonFileData, err := os.ReadFile(citiesJSONFileName)
 	if err != nil {
 		panic(err)
 	}
@@ -222,16 +222,7 @@ func CreateWorldTables() {
 	if err != nil {
 		panic(err)
 	}
-	// Connect to the database
-	db, err := pgx.Connect(context.Background(), "postgres://caner:caner@localhost:5432/persephone")
-	if err != nil {
-		panic(err)
-	}
-	db.Exec(context.Background(), "CREATE DATABASE persephone")
-	_, err = db.Exec(context.Background(), "CREATE SCHEMA IF NOT EXISTS public")
-	if err != nil {
-		panic(err)
-	}
+	// dismiss error to replicate create database if not exists
 	var cityDataFixed Cities
 	for _, city := range cityData {
 		var dumpCity City
@@ -256,11 +247,10 @@ func CreateWorldTables() {
 		dumpCity.StateID = uint32(city.StateID)
 		cityDataFixed = append(cityDataFixed, dumpCity)
 	}
-	jsonFileName = "countries.json"
 	var countryData Countries
 	var countryDataFixed CountriesInDB
 	var timezones CountryTimezones
-	jsonFileData, err = os.ReadFile(jsonFileName)
+	jsonFileData, err = os.ReadFile(countriesJSONFileName)
 	if err != nil {
 		panic(err)
 	}
@@ -311,10 +301,9 @@ func CreateWorldTables() {
 		dumpCountry.Longitude = lon
 		countryDataFixed = append(countryDataFixed, dumpCountry)
 	}
-	jsonFileName = "states.json"
 	var stateData States
 	var stateDataFixed StatesInDB
-	jsonFileData, err = os.ReadFile(jsonFileName)
+	jsonFileData, err = os.ReadFile(statesJSONFileName)
 	if err != nil {
 		panic(err)
 	}
@@ -358,36 +347,13 @@ func CreateWorldTables() {
 		panic(err)
 	}
 }
-func DropAndInsertStates(states StatesInDB, db *pgx.Conn) error {
-	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err := db.Exec(to, `DROP TABLE IF EXISTS states CASCADE;`)
-	if err != nil {
-		panic(err)
-	}
-	to, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err = db.Exec(to, `CREATE TABLE states (
-  id            SMALLSERIAL PRIMARY KEY NOT NULL,
-  name          VARCHAR(255) NOT NULL,
-  country_id    INTEGER NOT NULL,
-  country_code  CHAR(2) NOT NULL,
-  type          VARCHAR(191),
-  latitude      DECIMAL(10, 8),
-  longitude     DECIMAL(11, 8),
-  created_at    TIMESTAMPTZ DEFAULT NULL,
-  updated_at    TIMESTAMPTZ DEFAULT current_timestamp,
-  FOREIGN KEY (country_id) REFERENCES countries (id)
-);`)
-	if err != nil {
-		return err
-	}
+func DropAndInsertStates(states StatesInDB, db *pgxpool.Pool) error {
 	var rows [][]interface{}
 	for _, state := range states {
 		rows = append(rows, []interface{}{state.ID, state.Name, state.CountryID, state.CountryCode, state.Type, state.Latitude, state.Longitude, state.CreatedAt, state.UpdatedAt})
 	}
 	cols := []string{"id", "name", "country_id", "country_code", "type", "latitude", "longitude", "created_at", "updated_at"}
-	_, err = db.CopyFrom(
+	_, err := db.CopyFrom(
 		context.Background(),
 		pgx.Identifier{"states"},
 		cols,
@@ -398,126 +364,46 @@ func DropAndInsertStates(states StatesInDB, db *pgx.Conn) error {
 	}
 	return nil
 }
-func DropAndInsertTimezones(timezones CountryTimezones, db *pgx.Conn) error {
-	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err := db.Exec(to, `DROP TABLE IF EXISTS timezones CASCADE;`)
-	to, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err = db.Exec(to, `CREATE TABLE timezones (
-  id              SMALLSERIAL PRIMARY KEY,
-  zone_name       VARCHAR(30) NOT NULL,
-  gmt_offset      INTEGER NOT NULL,
-  gmt_offset_name VARCHAR(9) NOT NULL,
-  abbreviation    VARCHAR(5) NOT NULL,
-  tz_name         VARCHAR(53) NOT NULL
-);`)
-	if err != nil {
-		return err
-	}
+func DropAndInsertTimezones(timezones CountryTimezones, db *pgxpool.Pool) error {
 	cols := []string{"zone_name", "gmt_offset", "gmt_offset_name", "abbreviation", "tz_name"}
 	var rows [][]interface{}
 	for _, tz := range timezones {
 		rows = append(rows, []interface{}{tz.ZoneName, tz.GmtOffset, tz.GmtOffsetName, tz.Abbreviation, tz.TzName})
 	}
-	to, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_, err = db.CopyFrom(to, pgx.Identifier{"timezones"}, cols, pgx.CopyFromRows(rows))
+	_, err := db.CopyFrom(to, pgx.Identifier{"timezones"}, cols, pgx.CopyFromRows(rows))
 	if err != nil {
 		return err
 	}
 	return nil
 
 }
-func DropAndInsertCountry(countries CountriesInDB, db *pgx.Conn) error {
-	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err := db.Exec(to, `DROP TABLE IF EXISTS countries CASCADE;`)
-	if err != nil {
-		return err
-	}
-	to, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err = db.Exec(to, `CREATE TABLE countries (
-  id             SMALLSERIAL PRIMARY KEY,
-  name           VARCHAR(255) NOT NULL,
-  iso3           VARCHAR(3),
-  numeric_code   VARCHAR(3),
-  iso2           VARCHAR(2),
-  phonecode      VARCHAR(255),
-  capital        VARCHAR(255),
-  currency       VARCHAR(255),
-  currency_name  VARCHAR(42),
-  currency_symbol VARCHAR(255),
-  tld            VARCHAR(255),
-  native         VARCHAR(255),
-  region         VARCHAR(12),
-  subregion      VARCHAR(255),
-  timezone_id    INTEGER[],
-  translations   JSONB,
-  latitude       DOUBLE PRECISION,
-  longitude      DOUBLE PRECISION,
-  emoji          VARCHAR(191),
-  emojiU         VARCHAR(191),
-  created_at     TIMESTAMPTZ DEFAULT current_timestamp,
-  updated_at     TIMESTAMPTZ DEFAULT current_timestamp
-);
-`)
-	if err != nil {
-		return err
-	}
+func DropAndInsertCountry(countries CountriesInDB, db *pgxpool.Pool) error {
 	cols := []string{"name", "iso3", "numeric_code", "iso2", "phonecode", "capital", "currency", "currency_name", "currency_symbol", "tld", "native", "region", "subregion", "timezone_id", "translations", "latitude", "longitude", "emoji", "emojiu", "created_at", "updated_at"}
 	var rows [][]interface{}
 	for _, country := range countries {
 		rows = append(rows, []interface{}{country.Name, country.ISO3, country.NumericCode, country.ISO2, country.PhoneCode, country.Capital, country.Currency, country.CurrencyName, country.CurrencySymbol, country.TLD, country.Native, country.Region, country.Subregion, country.TimezoneID, country.Translations, country.Latitude, country.Longitude, country.Emoji, country.EmojiU, time.Now(), time.Now()})
 	}
-	to, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_, err = db.CopyFrom(to, pgx.Identifier{"countries"}, cols, pgx.CopyFromRows(rows))
+	_, err := db.CopyFrom(to, pgx.Identifier{"countries"}, cols, pgx.CopyFromRows(rows))
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func DropAndInsertCities(cities []City, db *pgx.Conn) error {
-	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	_, err := db.Exec(to, `DROP TABLE IF EXISTS cities CASCADE;`)
-	if err != nil {
-		panic(err)
-	}
-	to, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	// create Cities table, if it does not exist
-	_, err = db.Exec(to, `CREATE TABLE cities (
-  id            SERIAL PRIMARY KEY,
-  name          VARCHAR(86) NOT NULL,
-  state_id      SMALLINT NOT NULL,
-  state_code    VARCHAR(255) NOT NULL,
-  country_id    SMALLINT NOT NULL,
-  country_code  CHAR(2) NOT NULL,
-  latitude      DECIMAL(10, 8) NOT NULL,
-  longitude     DECIMAL(11, 8) NOT NULL,
-  created_at    TIMESTAMPTZ DEFAULT '2014-01-01 06:31:01',
-  updated_at    TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-  wiki_data_id    VARCHAR(255) DEFAULT NULL,
-  CONSTRAINT fk_cities_state FOREIGN KEY (state_id) REFERENCES states (id),
-  CONSTRAINT fk_cities_country FOREIGN KEY (country_id) REFERENCES countries (id)
-);
-`)
-	if err != nil {
-		panic(err)
-	}
+func DropAndInsertCities(cities []City, db *pgxpool.Pool) error {
 	// Prepare the data for bulk insert
 	cols := []string{"name", "state_id", "state_code", "country_id", "country_code", "latitude", "longitude", "created_at", "updated_at", "wiki_data_id"}
 	var rows [][]interface{}
 	for _, city := range cities {
 		rows = append(rows, []interface{}{city.Name, city.StateID, city.StateCode, city.CountryID, city.CountryCode, city.Latitude, city.Longitude, city.CreatedAt, city.UpdatedAt, city.WikiDataID})
 	}
-	to, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_, err = db.CopyFrom(to, pgx.Identifier{"cities"}, cols, pgx.CopyFromRows(rows))
+	_, err := db.CopyFrom(to, pgx.Identifier{"cities"}, cols, pgx.CopyFromRows(rows))
 	if err != nil {
 		panic(err)
 	}

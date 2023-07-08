@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"github.com/go-co-op/gocron"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,9 +17,24 @@ import (
 	"time"
 )
 
+var initSQLLocation = flag.String("init-sql", "./init.sql", "location of init.sql file")
+var statesJSONLocation = flag.String("states-json", "./states.json", "location of states.json file")
+var countriesJSONLocation = flag.String("countries-json", "./countries.json", "location of countries.json file")
+var citiesJSONLocation = flag.String("cities-json", "./cities.json", "location of cities.json file")
+var jaegerEndpoint = flag.String("jaeger-endpoint", "http://localhost:14268/api/traces", "jaeger endpoint")
+
 func init() {
-	// setup OTEL exporter, to be used in the tracer
-	setupExporter()
+	flag.Parse()
+	exporter, err := jaeger.New(
+		jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(*jaegerEndpoint)),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+	)
+	otel.SetTracerProvider(tp)
 	// get a new db connection and create city, state, and country tables
 	db, err := pgxpool.New(context.Background(), core.GetPSQLConnString(core.DBConnSSLDisabled))
 	if err != nil {
@@ -34,11 +50,7 @@ func init() {
 	if err = conn.Ping(to); err != nil {
 		panic(err)
 	}
-	CreateWorldTables()
-	// after being done, execute the init.sql for table/schema creation if not exists already.
-	//
-	// init.sql always lies in the src folder, so we can just read it from there.
-	sqlData, err := os.ReadFile("./init.sql")
+	sqlData, err := os.ReadFile(*initSQLLocation)
 	if err != nil {
 		panic(err)
 	}
@@ -47,6 +59,7 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+	CreateWorldTables(*statesJSONLocation, *countriesJSONLocation, *citiesJSONLocation, db)
 	// schedule any kind of crons you have below
 	s := gocron.NewScheduler(time.UTC)
 	_, err = s.Every(3).Days().SingletonMode().Do(func() {
@@ -63,23 +76,6 @@ func init() {
 	// start executing cron jobs asynchronously and block the main thread while backend is running.
 	s.StartAsync()
 	s.StartBlocking()
-}
-
-func setupExporter() {
-	endpoint := "http://localhost:14268/api/traces" // Jaeger endpoint
-
-	exporter, err := jaeger.New(
-		jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(endpoint)),
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	tp := sdktrace.NewTracerProvider(
-		sdktrace.WithBatcher(exporter),
-	)
-
-	otel.SetTracerProvider(tp)
 }
 
 func main() {}
