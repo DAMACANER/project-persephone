@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
-	"errors"
 	"fmt"
 	"github.com/Masterminds/squirrel"
 	"github.com/go-chi/chi/v5/middleware"
@@ -150,14 +149,12 @@ func (s Server) GetJWTData() (JWTFields, error) {
 	// find Authorization header
 	header := s.Request.Header.Get("Authorization")
 	if header == "" {
-		return JWTFields{}, errors.New("no Authorization header")
+		return JWTFields{}, NoAuthorizationHeaderError
 	}
 	jwtTok := header[len("Bearer "):]
 	token, err := jwt.Parse(jwtTok, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			err := errors.New("unexpected signing method")
-			s.LogError(err, http.StatusInternalServerError)
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			return nil, UnexpectedSigningMethodError("HMAC", token.Header["alg"].(string))
 		}
 		return []byte(JWT_ENCRYPT_KEY), nil
 	})
@@ -166,13 +163,13 @@ func (s Server) GetJWTData() (JWTFields, error) {
 	}
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		if claims["exp"] == nil {
-			return JWTFields{}, errors.New("invalid JWT, no expiration time given in claims")
+			return JWTFields{}, InvalidJWTTokenNoExpirationTimeError
 		}
 		if claims["exp"].(float64) < float64(time.Now().Unix()) {
-			return JWTFields{}, errors.New("invalid JWT, token has expired")
+			return JWTFields{}, InvalidJWTTokenExpiredError
 		}
 	} else {
-		return JWTFields{}, errors.New("invalid JWT")
+		return JWTFields{}, InvalidJWTGeneral
 	}
 	var fields JWTFields
 	for key, value := range token.Claims.(jwt.MapClaims) {
@@ -192,16 +189,6 @@ func (s Server) GetJWTData() (JWTFields, error) {
 }
 
 // ExecuteSQL godoc
-
-// Do not handle the error returned by this function. This function logs the error, so you only need to do a check of:
-//
-//	if err := ExecuteSQL(...); err != nil { return }
-//
-// Only return from the function you are in, do not handle the error.
-//
-// If you need to handle the error yourself, give the disableErrorHandling parameter a value of true.
-//
-// This will only return the error, instead of logging it and returning it.
 //
 // sqlBuilder takes Squirrel's InsertBuilder, CaseBuilder or any builder that has a method that follows the:
 //
@@ -217,7 +204,7 @@ func (s Server) ExecuteSQL(sqlBuilder StmtBuilders) (pgconn.CommandTag, error) {
 	defer cancel()
 	res, err := s.DB.Exec(to, sql, args...)
 	if err != nil {
-		return res, err
+		return pgconn.CommandTag{}, err
 	}
 	return res, nil
 }

@@ -37,7 +37,7 @@ var HandlerFunc = func() http.Handler {
 	router.Use(AssignServer)
 	router.Use(AssignWriter)
 	router.Use(AssignRequest)
-	router.Use(AssignLogger())
+	router.Use(AssignLogger)
 	router.Use(AssignValidator)
 	router.Use(AssignQueryBuilder)
 
@@ -147,7 +147,6 @@ const (
 	JWTUUIDKey    = "uuid"
 	JWTExpiresKey = "exp"
 	JWTRoleKey    = "role"
-	JWTTokenKey   = "token"
 	JWTStatusKey  = "status"
 )
 

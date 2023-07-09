@@ -34,6 +34,9 @@ const (
 	TestState    = 1
 )
 
+func (suite *UserTestSuite) CleanClient() {
+	suite.Server.Client().Transport.(*http.Transport).CloseIdleConnections()
+}
 func (suite *UserTestSuite) DeleteAndCreateUser() {
 	sql, args, err := suite.StmtBuilder.Delete(UserTableName).Where(squirrel.Eq{UserEmailDBField: TestEmail}).ToSql()
 	assert.Nil(suite.T(), err)
@@ -75,6 +78,7 @@ func (suite *UserTestSuite) DeleteAndCreateUser() {
 	err = json.NewDecoder(req.Body).Decode(&resp)
 	assert.Nil(suite.T(), err)
 	suite.SessionToken = resp.SessionToken
+	suite.CleanClient()
 }
 
 func (suite *UserTestSuite) SetupSuite() {

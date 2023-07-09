@@ -27,17 +27,15 @@ func AssignServer(next http.Handler) http.Handler {
 	})
 }
 
-func AssignLogger() func(next http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			server := r.Context().Value(ServerKeyString).(*Server)
-			logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
-			server.Logger = logger
-			ctx := context.WithValue(r.Context(), ServerKeyString, server)
-			r = r.WithContext(ctx)
-			next.ServeHTTP(w, r)
-		})
-	}
+func AssignLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := r.Context().Value(ServerKeyString).(*Server)
+		logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+		server.Logger = logger
+		ctx := context.WithValue(r.Context(), ServerKeyString, server)
+		r = r.WithContext(ctx)
+		next.ServeHTTP(w, r)
+	})
 }
 
 func AssignDB(db *pgxpool.Pool) func(next http.Handler) http.Handler {
@@ -136,11 +134,11 @@ func JWTWhitelist(tokenStatus []string, userRole []string) func(next http.Handle
 				return
 			}
 			if !TokenStatusWhitelist(jwtContents, tokenStatus) {
-				server.LogError(userNotAllowedError, http.StatusForbidden)
+				server.LogError(UserNotAllowedError, http.StatusForbidden)
 				return
 			}
 			if !UserRoleWhiteList(jwtContents, userRole) {
-				server.LogError(userNotAllowedError, http.StatusForbidden)
+				server.LogError(UserNotAllowedError, http.StatusForbidden)
 				return
 			}
 			next.ServeHTTP(w, r)

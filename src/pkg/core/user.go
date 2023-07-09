@@ -1,7 +1,6 @@
 package core
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/Masterminds/squirrel"
 	"github.com/go-chi/chi/v5"
@@ -168,7 +167,7 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if rows.Next() {
-			s.LogError(emailAlreadyExistsError, http.StatusBadRequest)
+			s.LogError(EmailAlreadyExistsError, http.StatusBadRequest)
 			return
 		} else {
 			rows, err = s.QuerySQL(s.StmtBuilder.Select("*").From("users").Where(squirrel.Eq{"username": signUpForm.Username}))
@@ -177,7 +176,7 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if rows.Next() {
-				s.LogError(usernameAlreadyExistsError, http.StatusBadRequest)
+				s.LogError(UsernameAlreadyExistsError, http.StatusBadRequest)
 				return
 			} else {
 				// do the same check for phone number
@@ -187,7 +186,7 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				if rows.Next() {
-					s.LogError(phoneNumberAlreadyExistsError, http.StatusBadRequest)
+					s.LogError(PhoneNumberAlreadyExistsError, http.StatusBadRequest)
 					return
 				}
 			}
@@ -218,10 +217,10 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	userData.Verified = false
 	tokenLoginInterface := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"uuid":   userData.ID,
-		"exp":    time.Now().Add(tokenDurationLogin).Unix(),
-		"role":   roleUser,
-		"status": tokenStatusWaitingLogin,
+		JWTUUIDKey:    userData.ID,
+		JWTExpiresKey: time.Now().Add(tokenDurationLogin).Unix(),
+		JWTRoleKey:    roleUser,
+		JWTStatusKey:  tokenStatusWaitingLogin,
 	})
 	loginToken, err := tokenLoginInterface.SignedString([]byte(JWT_ENCRYPT_KEY))
 	if err != nil {
@@ -385,13 +384,12 @@ func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 		uid = jwtContents.UUID
 	} else {
 		var signInForm UserLoginRequest
-		err := json.NewDecoder(r.Body).Decode(&signInForm)
-		if err != nil {
+		if err := s.Bind(&signInForm); err != nil {
 			s.LogError(err, http.StatusBadRequest)
 			return
 		}
 		if !signInForm.Test {
-			err = s.Validator.Struct(signInForm)
+			err := s.Validator.Struct(signInForm)
 			if err != nil {
 				s.LogError(err, http.StatusBadRequest)
 				return
@@ -409,11 +407,9 @@ func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 			s.LogError(err, http.StatusInternalServerError)
 			return
 		}
-		if !rows.Next() {
-			s.LogError(err, http.StatusUnauthorized)
-			return
-		}
+		var i = 0
 		for rows.Next() {
+			i++
 			var password string
 			err = rows.Scan(&password, &uid)
 			if err != nil {
@@ -426,12 +422,16 @@ func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		if i == 0 {
+			s.LogError(UserDoesNotExistError, http.StatusUnauthorized)
+			return
+		}
 	}
 	tokenAuth := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"uuid":   uid,
-		"exp":    time.Now().Add(time.Hour * 24 * 30).Unix(),
-		"role":   roleUser,
-		"status": tokenStatusActive,
+		JWTUUIDKey:    uid,
+		JWTExpiresKey: time.Now().Add(time.Hour * 24 * 30).Unix(),
+		JWTRoleKey:    roleUser,
+		JWTStatusKey:  tokenStatusActive,
 	})
 	tokenToSend, err := tokenAuth.SignedString([]byte(JWT_ENCRYPT_KEY))
 	if err != nil {
@@ -520,11 +520,11 @@ func UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	if req.Email != "" {
 		if !req.Test {
 			if req.Email == user.Email {
-				s.LogError(emailIsSameWithRequestedError, http.StatusBadRequest)
+				s.LogError(EmailIsSameWithRequestedError, http.StatusBadRequest)
 				return
 			}
 			if time.Now().Sub(user.EmailLastUpdatedAt) < AllowedUsernameUpdateInterval {
-				s.LogError(updatedRecentlyError("email", user.EmailLastUpdatedAt, AllowedUserEmailUpdateInterval), http.StatusBadRequest)
+				s.LogError(UpdatedRecentlyError("email", user.EmailLastUpdatedAt, AllowedUserEmailUpdateInterval), http.StatusBadRequest)
 				return
 			}
 		}
@@ -534,11 +534,11 @@ func UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 	if req.Username != "" {
 		if !req.Test {
 			if req.Username == user.Username {
-				s.LogError(usernameIsSameWithRequestedError, http.StatusBadRequest)
+				s.LogError(UsernameIsSameWithRequestedError, http.StatusBadRequest)
 				return
 			}
 			if time.Now().Sub(user.UsernameLastUpdatedAt) < AllowedUsernameUpdateInterval {
-				s.LogError(updatedRecentlyError("username", user.UsernameLastUpdatedAt, AllowedUsernameUpdateInterval), http.StatusBadRequest)
+				s.LogError(UpdatedRecentlyError("username", user.UsernameLastUpdatedAt, AllowedUsernameUpdateInterval), http.StatusBadRequest)
 				return
 			}
 		}
@@ -631,6 +631,7 @@ func GetUser(r *http.Request) {
 		s.LogError(err, http.StatusBadRequest)
 		return
 	}
+	fmt.Println(jwtContents.UUID)
 	userFindQuery := s.StmtBuilder.
 		Select(
 			fmt.Sprintf("%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s",
