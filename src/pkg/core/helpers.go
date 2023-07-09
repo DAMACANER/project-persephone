@@ -10,6 +10,7 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-jwt/jwt/v5"
+
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -191,7 +192,7 @@ func (s Server) GetJWTData() (JWTFields, error) {
 }
 
 // ExecuteSQL godoc
-//
+
 // Do not handle the error returned by this function. This function logs the error, so you only need to do a check of:
 //
 //	if err := ExecuteSQL(...); err != nil { return }
@@ -207,21 +208,15 @@ func (s Server) GetJWTData() (JWTFields, error) {
 //	ToSql() (string, []interface{}, error)
 //
 // signature.
-func (s Server) ExecuteSQL(sqlBuilder StmtBuilders, disableErrorHandling bool) (pgconn.CommandTag, error) {
+func (s Server) ExecuteSQL(sqlBuilder StmtBuilders) (pgconn.CommandTag, error) {
 	sql, args, err := sqlBuilder.ToSql()
 	if err != nil {
-		if !disableErrorHandling {
-			s.LogError(err, http.StatusInternalServerError)
-		}
 		return pgconn.CommandTag{}, err
 	}
 	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	res, err := s.DB.Exec(to, sql, args...)
 	if err != nil {
-		if !disableErrorHandling {
-			s.LogError(err, http.StatusInternalServerError)
-		}
 		return res, err
 	}
 	return res, nil
@@ -229,34 +224,24 @@ func (s Server) ExecuteSQL(sqlBuilder StmtBuilders, disableErrorHandling bool) (
 
 // QuerySQL godoc
 //
-// Do not handle the error returned by this function, this function logs the error, so you only need to do a check of:
-//
-//	if err := QuerySQL(...); err != nil { return }
-//
-// Only return from the function you are in, do not handle the error.
-//
-// If you need to handle the error yourself, give the disableErrorHandling parameter a value of true.
-//
-// This will only return the error, instead of logging it and returning it.
-//
 // sqlBuilder takes Squirrel's SelectBuilder, CaseBuilder or any builder that has a method that follows the:
 //
 //	ToSql() (string, []interface{}, error)
-func (s Server) QuerySQL(sqlBuilder StmtBuilders, disableErrorHandling bool) (pgx.Rows, error) {
+//
+// returns a pgx.Rows object, which you can iterate over with:
+//
+//	for rows.Next() {}
+//
+// and an error.
+func (s Server) QuerySQL(sqlBuilder StmtBuilders) (pgx.Rows, error) {
 	sql, args, err := sqlBuilder.ToSql()
 	if err != nil {
-		if !disableErrorHandling {
-			s.LogError(err, http.StatusInternalServerError)
-		}
 		return nil, err
 	}
 	to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	rows, err := s.DB.Query(to, sql, args...)
 	if err != nil {
-		if !disableErrorHandling {
-			s.LogError(err, http.StatusInternalServerError)
-		}
 		return nil, err
 	}
 	return rows, nil

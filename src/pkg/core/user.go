@@ -161,18 +161,19 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// check if user exists
-		rows, err := s.QuerySQL(s.StmtBuilder.Select("*").From("users").Where(squirrel.Eq{"email": signUpForm.Email}), false)
+		rows, err := s.QuerySQL(s.StmtBuilder.Select("*").From("users").Where(squirrel.Eq{"email": signUpForm.Email}))
 		defer rows.Close()
 		if err != nil {
+			s.LogError(err, http.StatusInternalServerError)
 			return
-
 		}
 		if rows.Next() {
 			s.LogError(emailAlreadyExistsError, http.StatusBadRequest)
 			return
 		} else {
-			rows, err = s.QuerySQL(s.StmtBuilder.Select("*").From("users").Where(squirrel.Eq{"username": signUpForm.Username}), false)
+			rows, err = s.QuerySQL(s.StmtBuilder.Select("*").From("users").Where(squirrel.Eq{"username": signUpForm.Username}))
 			if err != nil {
+				s.LogError(err, http.StatusInternalServerError)
 				return
 			}
 			if rows.Next() {
@@ -180,8 +181,9 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			} else {
 				// do the same check for phone number
-				rows, err = s.QuerySQL(s.StmtBuilder.Select("*").From("users").Where(squirrel.Eq{"phone_number": signUpForm.PhoneNum}), false)
+				rows, err = s.QuerySQL(s.StmtBuilder.Select("*").From("users").Where(squirrel.Eq{"phone_number": signUpForm.PhoneNum}))
 				if err != nil {
+					s.LogError(err, http.StatusInternalServerError)
 					return
 				}
 				if rows.Next() {
@@ -280,7 +282,7 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 			userData.State,
 			userData.LastLoginIP,
 		)
-	if _, err = s.ExecuteSQL(user, true); err != nil {
+	if _, err = s.ExecuteSQL(user); err != nil {
 		if signUpForm.Test {
 			s.Logger.Error(err.Error())
 			s.Logger.Info("test mode, logged error, fallbacking to updating already existing user")
@@ -300,15 +302,15 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 				Set(UserIDDBField, userData.ID)
 			userQuery := user.Where(squirrel.Eq{UserEmailDBField: userData.Email})
 			var res pgconn.CommandTag
-			res, err = s.ExecuteSQL(userQuery, false)
+			res, err = s.ExecuteSQL(userQuery)
 			if res.RowsAffected() == 0 {
 				// try again with username if the email is not found
 				userQuery = user.Where(squirrel.Eq{UserUsernameDBField: userData.Username})
-				res, err = s.ExecuteSQL(userQuery, false)
+				res, err = s.ExecuteSQL(userQuery)
 				if res.RowsAffected() == 0 {
 					// try again with phone number if the username is not found
 					userQuery = user.Where(squirrel.Eq{UserPhoneNumberDBField: userData.PhoneNumber})
-					res, err = s.ExecuteSQL(userQuery, false)
+					res, err = s.ExecuteSQL(userQuery)
 					if res.RowsAffected() == 0 || err != nil {
 						s.LogError(err, http.StatusInternalServerError)
 						return
@@ -319,10 +321,12 @@ func UserSignupHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 			}
+			if err != nil {
+				s.LogError(err, http.StatusInternalServerError)
+				return
+			}
 		} else {
-			// do not handle the executeSQL s error here, it is handled inside the function.
-			//
-			// only return from the function, as it is already handled.
+			s.LogError(err, http.StatusInternalServerError)
 			return
 		}
 	}
@@ -399,12 +403,16 @@ func UserLoginHandler(w http.ResponseWriter, r *http.Request) {
 		} else if signInForm.Username != "" {
 			sqlBuilder = sqlBuilder.Where(squirrel.Eq{UserUsernameDBField: signInForm.Username})
 		}
-		rows, err := s.QuerySQL(sqlBuilder, false)
+		rows, err := s.QuerySQL(sqlBuilder)
 		defer rows.Close()
 		if err != nil {
+			s.LogError(err, http.StatusInternalServerError)
 			return
 		}
-		// print rows
+		if !rows.Next() {
+			s.LogError(err, http.StatusUnauthorized)
+			return
+		}
 		for rows.Next() {
 			var password string
 			err = rows.Scan(&password, &uid)
@@ -502,9 +510,10 @@ func UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 			UserSessionTokenDBField)).
 		From("users").
 		Where(squirrel.Eq{UserIDDBField: jwtContents.UUID})
-	rows, err := s.QuerySQL(userQuery, false)
+	rows, err := s.QuerySQL(userQuery)
 	defer rows.Close()
 	if err != nil {
+		s.LogError(err, http.StatusInternalServerError)
 		return
 	}
 	err = rows.Scan(&user.EmailLastUpdatedAt, &user.UsernameLastUpdatedAt, &user.Email, &user.Username, &user.SessionToken)
@@ -542,7 +551,8 @@ func UserUpdateHandler(w http.ResponseWriter, r *http.Request) {
 		UserEmailLastUpdatedAtDBField:    user.EmailLastUpdatedAt,
 		UserUsernameLastUpdatedAtDBField: user.UsernameLastUpdatedAt,
 	}).Where(squirrel.Eq{UserIDDBField: jwtContents.UUID})
-	if _, err := s.ExecuteSQL(updateQuery, false); err != nil {
+	if _, err := s.ExecuteSQL(updateQuery); err != nil {
+		s.LogError(err, http.StatusInternalServerError)
 		return
 	}
 	GetUser(r)
@@ -640,7 +650,7 @@ func GetUser(r *http.Request) {
 				UserLastLoginAtDBField)).
 		From(UserTableName).
 		Where(squirrel.Eq{UserIDDBField: jwtContents.UUID})
-	user, err := s.QuerySQL(userFindQuery, false)
+	user, err := s.QuerySQL(userFindQuery)
 	defer user.Close()
 	if err != nil {
 		s.LogError(err, http.StatusInternalServerError)
@@ -682,8 +692,9 @@ func GetUser(r *http.Request) {
 		Join(fmt.Sprintf("%s on %s.%s = %s.%s", CityTable, CityTable, CityIDDBField, UserTableName, UserCityDBField)).
 		Join(fmt.Sprintf("%s on %s.%s = %s.%s", CountryTable, CountryTable, CountryIDDBField, UserTableName, UserCountryDBField)).
 		Where(squirrel.Eq{fmt.Sprintf("%s.%s", UserTableName, UserIDDBField): jwtContents.UUID})
-	location, err := s.QuerySQL(locationQuery, false)
+	location, err := s.QuerySQL(locationQuery)
 	if err != nil {
+		s.LogError(err, http.StatusInternalServerError)
 		return
 	}
 	defer location.Close()
@@ -733,7 +744,8 @@ func UserDeleteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	deleteQuery := s.StmtBuilder.Delete(UserTableName).Where(squirrel.Eq{UserIDDBField: jwtContents.UUID})
-	if _, err = s.ExecuteSQL(deleteQuery, false); err != nil {
+	if _, err = s.ExecuteSQL(deleteQuery); err != nil {
+		s.LogError(err, http.StatusInternalServerError)
 		return
 	}
 	if err = s.WriteResponse(UserDeleteResponse{Success: true}, http.StatusOK); err != nil {

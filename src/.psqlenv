@@ -1,0 +1,3 @@
+POSTGRES_PASSWORD=caner
+POSTGRES_USER=caner
+POSTGRES_DB=persephone
