@@ -634,23 +634,29 @@ func GetUser(r *http.Request) {
 	fmt.Println(jwtContents.UUID)
 	userFindQuery := s.StmtBuilder.
 		Select(
-			fmt.Sprintf("%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s",
-				UserIDDBField,
-				UserEmailDBField,
-				UserUsernameDBField,
-				UserCreatedAtDBField,
-				UserUpdatedAtDBField,
-				UserPhoneNumberDBField,
-				UserRoleDBField,
-				UserBannedDBField,
-				UserReputationDBField,
-				UserRefreshTokenDBField,
-				UserVerifiedDBField,
-				UserEmailLastUpdatedAtDBField,
-				UserUsernameLastUpdatedAtDBField,
-				UserLastLoginAtDBField)).
+			fmt.Sprintf("%s.%s", UserTableName, UserIDDBField),
+			fmt.Sprintf("%s.%s", UserTableName, UserEmailDBField),
+			fmt.Sprintf("%s.%s", UserTableName, UserUsernameDBField),
+			fmt.Sprintf("%s.%s", UserTableName, UserCreatedAtDBField),
+			fmt.Sprintf("%s.%s", UserTableName, UserUpdatedAtDBField),
+			fmt.Sprintf("%s.%s", UserTableName, UserPhoneNumberDBField),
+			fmt.Sprintf("%s.%s", UserTableName, UserRoleDBField),
+			fmt.Sprintf("%s.%s", UserTableName, UserBannedDBField),
+			fmt.Sprintf("%s.%s", UserTableName, UserReputationDBField),
+			fmt.Sprintf("%s.%s", UserTableName, UserRefreshTokenDBField),
+			fmt.Sprintf("%s.%s", UserTableName, UserVerifiedDBField),
+			fmt.Sprintf("%s.%s", UserTableName, UserEmailLastUpdatedAtDBField),
+			fmt.Sprintf("%s.%s", UserTableName, UserUsernameLastUpdatedAtDBField),
+			fmt.Sprintf("%s.%s", UserTableName, UserLastLoginAtDBField),
+			fmt.Sprintf("%s.%s", StateTable, StateNameDBField),
+			fmt.Sprintf("%s.%s", CityTable, CityNameDBField),
+			fmt.Sprintf("%s.%s", CountryTable, CountryNameDBField)).
 		From(UserTableName).
-		Where(squirrel.Eq{UserIDDBField: jwtContents.UUID})
+		Join(fmt.Sprintf("%s on %s.%s = %s.%s", StateTable, StateTable, StateIDDBField, UserTableName, UserStateDBField)).
+		Join(fmt.Sprintf("%s on %s.%s = %s.%s", CityTable, CityTable, CityIDDBField, UserTableName, UserCityDBField)).
+		Join(fmt.Sprintf("%s on %s.%s = %s.%s", CountryTable, CountryTable, CountryIDDBField, UserTableName, UserCountryDBField)).
+		Where(squirrel.Eq{fmt.Sprintf("%s.%s", UserTableName, UserIDDBField): jwtContents.UUID})
+
 	user, err := s.QuerySQL(userFindQuery)
 	defer user.Close()
 	if err != nil {
@@ -674,7 +680,10 @@ func GetUser(r *http.Request) {
 			&response.User.Verified,
 			&response.User.EmailLastUpdatedAt,
 			&response.User.UsernameLastUpdatedAt,
-			&response.User.LastLoginAt)
+			&response.User.LastLoginAt,
+			&response.User.Location.State,
+			&response.User.Location.City,
+			&response.User.Location.Country)
 		if err != nil {
 			s.LogError(err, http.StatusInternalServerError)
 			return
@@ -684,28 +693,6 @@ func GetUser(r *http.Request) {
 		return
 	}
 	response.SessionToken = strings.Replace(r.Header.Get("Authorization"), "Bearer ", "", -1)
-	locationQuery := s.StmtBuilder.
-		Select(fmt.Sprintf("%s.%s", StateTable, StateNameDBField),
-			fmt.Sprintf("%s.%s", CityTable, CityNameDBField),
-			fmt.Sprintf("%s.%s", CountryTable, CountryNameDBField)).
-		From(UserTableName).
-		Join(fmt.Sprintf("%s on %s.%s = %s.%s", StateTable, StateTable, StateIDDBField, UserTableName, UserStateDBField)).
-		Join(fmt.Sprintf("%s on %s.%s = %s.%s", CityTable, CityTable, CityIDDBField, UserTableName, UserCityDBField)).
-		Join(fmt.Sprintf("%s on %s.%s = %s.%s", CountryTable, CountryTable, CountryIDDBField, UserTableName, UserCountryDBField)).
-		Where(squirrel.Eq{fmt.Sprintf("%s.%s", UserTableName, UserIDDBField): jwtContents.UUID})
-	location, err := s.QuerySQL(locationQuery)
-	if err != nil {
-		s.LogError(err, http.StatusInternalServerError)
-		return
-	}
-	defer location.Close()
-	if location.Next() {
-		err = location.Scan(&response.User.Location.State, &response.User.Location.City, &response.User.Location.Country)
-		if err != nil {
-			s.LogError(err, http.StatusInternalServerError)
-			return
-		}
-	}
 	if s.WriteResponse(response, http.StatusOK) != nil {
 		s.LogError(err, http.StatusInternalServerError)
 		return
