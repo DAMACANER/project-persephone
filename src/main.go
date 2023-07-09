@@ -44,6 +44,8 @@ func init() {
 	defer cancel()
 	// acquire a connection from the pool, just to test if it works
 	conn, err := db.Acquire(to)
+	defer conn.Release()
+	defer db.Close()
 	if err != nil {
 		panic(err)
 	}
@@ -55,7 +57,7 @@ func init() {
 		panic(err)
 	}
 	sql := string(sqlData)
-	_, err = conn.Exec(to, sql)
+	_, err = db.Exec(to, sql)
 	if err != nil {
 		panic(err)
 	}
@@ -63,7 +65,7 @@ func init() {
 	// schedule any kind of crons you have below
 	s := gocron.NewScheduler(time.UTC)
 	_, err = s.Every(3).Days().SingletonMode().Do(func() {
-		core.FetchPlaces()
+		core.FetchPlaces(db)
 	})
 	if err != nil {
 		log.Printf("error scheduling cron: %v", err)

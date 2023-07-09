@@ -9,7 +9,6 @@ import (
 	"github.com/Masterminds/squirrel"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/golang-jwt/jwt/v5"
-
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -339,10 +338,10 @@ func fetchRestaurantsInArea(filename string, minLon, minLat, maxLon, maxLat floa
 
 	return nodes, nil
 }
-func FetchPlaces() {
+func FetchPlaces(db *pgxpool.Pool) {
+	stmtBuilder := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
 	// Define bounding box coordinates for Istanbul
 	fmt.Println("Fetching restaurant data...")
-	var restaurants []Restaurant
 	minLon := 28.8572
 	minLat := 40.9382
 	maxLon := 29.3487
@@ -353,33 +352,92 @@ func FetchPlaces() {
 		log.Printf("error scheduling cron for fetching places: %v", err)
 		return
 	}
-
+	var rows [][]interface{}
+	var cols []string
+	cols = append(cols,
+		RestaurantCuisineDBField,
+		RestaurantOpeningHoursDBField,
+		RestaurantNameDBField,
+		RestaurantPhoneDBField,
+		RestaurantWebsiteDBField,
+		RestaurantFullAddressDBField,
+		RestaurantHouseNumberDBField,
+		RestaurantCityDBField,
+		RestaurantStateDBField,
+		RestaurantCountryDBField,
+		RestaurantLatitudeDBField,
+		RestaurantLongitudeDBField,
+	)
 	// Process nodes and append to the restaurants slice
 	for _, node := range nodes {
 		name := extractTagValue(node.Tags, "name")
-		if name != "" {
+		selectBuilder := stmtBuilder.Select(RestaurantNameDBField).From(RestaurantsTable).Where(squirrel.Eq{RestaurantNameDBField: name})
+		sql, args, err := selectBuilder.ToSql()
+		if err != nil {
+			log.Printf("error scheduling cron for fetching places: %v", err)
+			return
+		}
+		rowsQ, err := db.Query(context.Background(), sql, args...)
+		if err != nil {
+			log.Printf("error scheduling cron for fetching places: %v", err)
+			return
+		}
+		if rowsQ.Next() {
+			continue
+		} else {
+			if name == "" {
+				name = "placeholder"
+			}
 			cuisine := extractTagValue(node.Tags, "cuisine")
 			openingHours := extractTagValue(node.Tags, "opening_hours")
 			phone := extractTagValue(node.Tags, "phone")
 			website := extractTagValue(node.Tags, "website")
 			address := extractTagValue(node.Tags, "addr:full")
+			houseNumber := extractTagValue(node.Tags, "addr:housenumber")
+			city := extractTagValue(node.Tags, "addr:city")
+			state := extractTagValue(node.Tags, "addr:state")
+			country := extractTagValue(node.Tags, "addr:country")
+			// convert city to pgType.Text
+			latitude := node.Lat
+			longitude := node.Lon
+			stateSelect := stmtBuilder.Select(StateIDDBField).From(StateTable).Where(squirrel.Eq{"name": state})
+			citySelect := stmtBuilder.Select(CityIDDBField).From(CityTable).Where(squirrel.Eq{"name": city})
+			countrySelect := stmtBuilder.Select(CountryIDDBField).From(CountryTable).Where(squirrel.Eq{"name": country})
 
-			restaurant := Restaurant{
-				Name:         name,
-				Cuisine:      cuisine,
-				OpeningHours: openingHours,
-				Phone:        phone,
-				Website:      website,
-				Address:      address,
-				Latitude:     node.Lat,
-				Longitude:    node.Lon,
-			}
+			stateSql, stateArgs, _ := stateSelect.ToSql()
+			citySql, cityArgs, _ := citySelect.ToSql()
+			countrySql, countryArgs, _ := countrySelect.ToSql()
 
-			restaurants = append(restaurants, restaurant)
+			var stateID, cityID, countryID int
+			to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			db.QueryRow(to, stateSql, stateArgs...).Scan(&stateID)
+			db.QueryRow(to, citySql, cityArgs...).Scan(&cityID)
+			db.QueryRow(to, countrySql, countryArgs...).Scan(&countryID)
+			// append to rows
+			rows = append(rows, []interface{}{
+				cuisine,
+				openingHours,
+				name,
+				phone,
+				website,
+				address,
+				houseNumber,
+				cityID,
+				stateID,
+				countryID,
+				latitude,
+				longitude,
+			})
 		}
 	}
-	fmt.Printf("Fetched %d restaurants. \n", len(restaurants))
-	// TODO: store the restaurant data in the postgres
+	// insert rows
+	_, err = db.CopyFrom(context.Background(), pgx.Identifier{RestaurantsTable}, cols, pgx.CopyFromRows(rows))
+	if err != nil {
+		log.Printf("error inserting rows: %v", err)
+		return
+	}
+	fmt.Printf("Fetched %d restaurants. \n", len(rows))
 }
 
 func extractTagValue(tags []Tag, key string) string {

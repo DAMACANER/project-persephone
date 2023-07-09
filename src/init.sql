@@ -8,7 +8,7 @@ DROP TABLE IF EXISTS countries CASCADE;
 CREATE TABLE countries
 (
     id              SMALLSERIAL PRIMARY KEY,
-    name            VARCHAR(255) NOT NULL,
+    name            VARCHAR(37) NOT NULL,
     iso3            VARCHAR(3),
     numeric_code    VARCHAR(3),
     iso2            VARCHAR(2),
@@ -46,7 +46,7 @@ DROP TABLE IF EXISTS states CASCADE;
 CREATE TABLE states
 (
     id           SMALLSERIAL PRIMARY KEY NOT NULL,
-    name         VARCHAR(255)            NOT NULL,
+    name         VARCHAR(57)            NOT NULL,
     country_id   INTEGER                 NOT NULL,
     country_code CHAR(2)                 NOT NULL,
     type         VARCHAR(191),
@@ -80,11 +80,25 @@ CREATE TABLE IF NOT EXISTS "reports"
     "report_reason" VARCHAR(60) NOT NULL, -- at least not specified
     "status"        VARCHAR(20) NOT NULL  -- at least one status.
 );
-
-CREATE TABLE IF NOT EXISTS "places"
-(
-    "id" UUID PRIMARY KEY DEFAULT (uuid_generate_v5(uuid_ns_dns(), 'places'))
+CREATE TABLE IF NOT EXISTS "places" (
+                                        id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+                                        name TEXT NOT NULL,
+                                        cuisine TEXT,
+                                        opening_hours TEXT,
+                                        phone TEXT,
+                                        website TEXT,
+                                        full_address TEXT,
+                                        house_number TEXT,
+                                        postcode TEXT,
+                                        city SERIAL,
+                                        country SMALLSERIAL,
+                                        state SMALLSERIAL,
+                                        latitude DOUBLE PRECISION,
+                                        longitude DOUBLE PRECISION
 );
+-- ALTER TABLE places ADD FOREIGN KEY (city) REFERENCES "cities" (id);
+-- ALTER TABLE places ADD FOREIGN KEY (country) REFERENCES "countries" (id);
+-- ALTER TABLE places ADD FOREIGN KEY (state) REFERENCES "states" (id);
 CREATE TABLE IF NOT EXISTS "places_reports"
 (
     "place_id"  UUID NOT NULL,
@@ -119,11 +133,16 @@ CREATE TABLE IF NOT EXISTS "users"
     "state"                    SMALLSERIAL              NOT NULL,
     "last_login_ip"            inet,
     "last_login_at"            TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    "possible_spammer"         BOOLEAN                  NOT NULL DEFAULT false,
-    unique (email, username, phone_number)
+    "possible_spammer"         BOOLEAN                  NOT NULL DEFAULT false
 );
 ALTER TABLE "users"
     ADD FOREIGN KEY ("place_id") REFERENCES "places" ("id");
+ALTER TABLE "users"
+    ADD FOREIGN KEY ("city") REFERENCES "cities" ("id");
+ALTER TABLE "users"
+    ADD FOREIGN KEY ("country") REFERENCES "countries" ("id");
+ALTER TABLE "users"
+    ADD FOREIGN KEY ("state") REFERENCES "states" ("id");
 
 CREATE TABLE IF NOT EXISTS "user_reports"
 (

@@ -250,6 +250,24 @@ const (
 	CityUpdatedAtDBField   = "updated_at"
 	CityWikiDataIDDBField  = "wiki_data_id"
 )
+const (
+	RestaurantsTable              = "places"
+	RestaurantIDDBField           = "id"
+	RestaurantNameDBField         = "name"
+	RestaurantCuisineDBField      = "cuisine"
+	RestaurantOpeningHoursDBField = "opening_hours"
+	RestaurantPhoneDBField        = "phone"
+	RestaurantWebsiteDBField      = "website"
+	RestaurantFullAddressDBField  = "full_address"
+	RestaurantHouseNumberDBField  = "house_number"
+	RestaurantStreetDBField       = "street"
+	RestaurantPostcodeDBField     = "postcode"
+	RestaurantCityDBField         = "city"
+	RestaurantCountryDBField      = "country"
+	RestaurantStateDBField        = "state"
+	RestaurantLatitudeDBField     = "latitude"
+	RestaurantLongitudeDBField    = "longitude"
+)
 
 type StmtBuilders interface {
 	ToSql() (string, []interface{}, error)
