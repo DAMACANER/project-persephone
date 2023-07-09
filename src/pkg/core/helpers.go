@@ -362,9 +362,6 @@ func FetchPlaces(db *pgxpool.Pool) {
 		RestaurantWebsiteDBField,
 		RestaurantFullAddressDBField,
 		RestaurantHouseNumberDBField,
-		RestaurantCityDBField,
-		RestaurantStateDBField,
-		RestaurantCountryDBField,
 		RestaurantLatitudeDBField,
 		RestaurantLongitudeDBField,
 	)
@@ -394,27 +391,13 @@ func FetchPlaces(db *pgxpool.Pool) {
 			website := extractTagValue(node.Tags, "website")
 			address := extractTagValue(node.Tags, "addr:full")
 			houseNumber := extractTagValue(node.Tags, "addr:housenumber")
-			city := extractTagValue(node.Tags, "addr:city")
-			state := extractTagValue(node.Tags, "addr:state")
-			country := extractTagValue(node.Tags, "addr:country")
 			// convert city to pgType.Text
 			latitude := node.Lat
 			longitude := node.Lon
-			stateSelect := stmtBuilder.Select(StateIDDBField).From(StateTable).Where(squirrel.Eq{"name": state})
-			citySelect := stmtBuilder.Select(CityIDDBField).From(CityTable).Where(squirrel.Eq{"name": city})
-			countrySelect := stmtBuilder.Select(CountryIDDBField).From(CountryTable).Where(squirrel.Eq{"name": country})
-
-			stateSql, stateArgs, _ := stateSelect.ToSql()
-			citySql, cityArgs, _ := citySelect.ToSql()
-			countrySql, countryArgs, _ := countrySelect.ToSql()
-
-			var stateID, cityID, countryID int
-			to, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			db.QueryRow(to, stateSql, stateArgs...).Scan(&stateID)
-			db.QueryRow(to, citySql, cityArgs...).Scan(&cityID)
-			db.QueryRow(to, countrySql, countryArgs...).Scan(&countryID)
-			// append to rows
+			// todo: find a more stable and finished data that has city/state/country properly
+			// this one is slowing us a ton
+			//
+			// we will keep it empty for now, but
 			rows = append(rows, []interface{}{
 				cuisine,
 				openingHours,
@@ -423,9 +406,6 @@ func FetchPlaces(db *pgxpool.Pool) {
 				website,
 				address,
 				houseNumber,
-				cityID,
-				stateID,
-				countryID,
 				latitude,
 				longitude,
 			})
